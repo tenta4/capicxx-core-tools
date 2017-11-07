@@ -2483,15 +2483,55 @@ capture.open(\"Video.avi\", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv:
         data.put("WRITE_VideoSourceFrames", "
 if (data.empty())
 {
-    ELOG_WRN << \"Received empty frame data\";
+    std::cout << \"Received empty frame data\";
+    return;
 }
 std::cout << \"Received frame: ts=\" << data[0].getTime() << std::endl;
 ManagedSharedMemoryBuffer::CSharedMemoryBuffer buff(data[0].getKey());
 uint8_t* frame_data = buff.getBuffer();
+
+/* TODO: add different color-spaces support */
 cv::Mat frame(height, width, CV_8UC3, frame_data);
 capture << frame;
 cv::imshow(\"frame\", frame);
 cv::waitKey(1);
+        ")
+
+        data.put("VideoSourcePlaybackIncludes", "
+#include <opencv2/opencv.hpp>
+#include <shared_memory_buffer/CSharedMemoryBuffer.hpp>
+        ")
+
+        data.put("VideoSourcePlaybackCtor", "
+static cv::VideoCapture capture;
+capture.open(\"Video.avi\"); // TODO: no hardcode
+        ")
+
+        data.put("READ_VideoSourceFrames", "
+static std::size_t prev_ts = m_curr_ts;
+if (prev_ts != m_curr_ts)
+{
+    capture.set(CV_CAP_PROP_POS_FRAMES, m_curr_ts);
+    prev_ts = m_curr_ts + 1;
+}
+cv::Mat frame;
+capture >> frame;
+
+std::size_t buff_size = frame.cols * frame.rows * 3;
+ManagedSharedMemoryBuffer::CSharedMemoryBuffer shm_buffer(
+    buff_size,
+    ManagedSharedMemoryBuffer::c_default_timeout,
+    ManagedSharedMemoryBuffer::c_default_timeout);
+
+memcpy(shm_buffer.getBuffer(), frame.data, buff_size);
+
+std::stringstream ss;
+for (auto a :shm_buffer.getKey())
+{
+    ss << (int)a;
+}
+std::cout << ss.str() << \" KEY\" << std::endl;
+data[0].setKey(shm_buffer.getKey());
         ")
 
         if (data.containsKey(tag))

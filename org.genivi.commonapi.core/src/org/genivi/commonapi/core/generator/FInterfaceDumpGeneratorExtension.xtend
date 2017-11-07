@@ -275,6 +275,7 @@ class FInterfaceDumpGeneratorExtension {
                             // TODO: add mutex?
                             m_writer.beginQuery("«broadcast.className»");
                             «FOR argument : broadcast.outArgs»
+                                «generateCustomCode("WRITE_" + fInterface.name + argument.name)»
                                 m_writer.adjustQuery(«argument.name», "«argument.name»");
                             «ENDFOR»
                         });

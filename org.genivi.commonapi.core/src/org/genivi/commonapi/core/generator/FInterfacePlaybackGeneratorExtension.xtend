@@ -26,6 +26,8 @@ class FInterfacePlaybackGeneratorExtension {
         #include <«fInterface.serrializationHeaderPath»>
         #include <«fInterface.getStubHeaderPath»>
 
+        «generateCustomCode(fInterface.name + "PlaybackIncludes")»
+
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
 
@@ -160,6 +162,7 @@ class FInterfacePlaybackGeneratorExtension {
             std::vector<SCall> m_calls;
 
             std::map<std::string, std::function<void(CVisitor&, boost::property_tree::ptree pt)>> m_functions;
+            std::size_t m_curr_ts;
         };
 
         void JsonDumpReader::getTimestamps(std::vector<int64_t>& res)
@@ -212,15 +215,18 @@ class FInterfacePlaybackGeneratorExtension {
 
         void JsonDumpReader::initFunctions()
         {
+            «generateCustomCode(fInterface.name + "PlaybackCtor")»
+
             m_functions = {
             «FOR attribute : fInterface.attributes»
                 «IF attribute.isObservable»
-                    {"«attribute.className»", [](CVisitor& visitor, boost::property_tree::ptree pt)
+                    {"«attribute.className»", [this](CVisitor& visitor, boost::property_tree::ptree pt)
                         {
                             boost::property_tree::ptree tmp_pt = pt.get_child("«attribute.name»");
 
                             «attribute.getTypeName(fInterface, true)» data;
                             JsonSerializer::readFromPtree(tmp_pt, data);
+                            «generateCustomCode("READ_" + fInterface.name + attribute.name)»
 
                             «attribute.name»Element data_elem(data);
                             visitor.visit«attribute.name»(data_elem);
@@ -229,12 +235,14 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDIF»
             «ENDFOR»
             «FOR broadcast : fInterface.broadcasts»
-                {"«broadcast.className»", [](CVisitor& visitor, boost::property_tree::ptree pt)
+                {"«broadcast.className»", [this](CVisitor& visitor, boost::property_tree::ptree pt)
                     {
                         «broadcast.name»Element data_elem;
                         «FOR argument : broadcast.outArgs»
                             boost::property_tree::ptree «argument.name»_pt = pt.get_child("«argument.name»");
                             «argument.getTypeName(fInterface, true)» «argument.name»_data;
+                            «generateCustomCode("RECV_" + fInterface.name + argument.name)»
+
                             JsonSerializer::readFromPtree(«argument.name»_pt, «argument.name»_data);
                             data_elem.set_«argument.name»(«argument.name»_data);
                         «ENDFOR»
@@ -247,6 +255,7 @@ class FInterfacePlaybackGeneratorExtension {
 
         void JsonDumpReader::readItem(std::size_t ts_id, CVisitor& visitor)
         {
+            m_curr_ts = ts_id;
             SCall call = m_calls[ts_id];
             m_file.seekg(call.m_pos);
 
