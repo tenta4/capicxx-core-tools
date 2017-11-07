@@ -125,7 +125,7 @@ class FInterfacePlaybackGeneratorExtension {
                 m_transport->fire«broadcast.name»Event(
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
-                    «IF !first»,«ENDIF»«IF first = false»«ENDIF» data.get_«argument.name»()
+                    «IF !first»,«ENDIF»«{first = false; ""}» data.get_«argument.name»()
                 «ENDFOR»
                 );
                 std::cout << "«broadcast.name»" << std::endl;

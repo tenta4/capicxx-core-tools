@@ -238,6 +238,8 @@ class FInterfaceDumpGeneratorExtension {
         #include <«fInterface.proxyHeaderPath»>
         #include <«fInterface.proxyDumpWriterHeaderPath»>
 
+        «generateCustomCode(fInterface.name + "Include")»
+
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
 
@@ -250,11 +252,14 @@ class FInterfaceDumpGeneratorExtension {
                 , m_writer("«fInterface.name»_dump.json")
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
+                «generateCustomCode(fInterface.name + "Ctor")»
 
                 «FOR fAttribute : fInterface.attributes»
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
+                            «generateCustomCode("WRITE_" + fInterface.name + fAttribute.name)»
+
                             // TODO: add mutex?
                             m_writer.beginQuery("«fAttribute.className»");
                             m_writer.adjustQuery(data, "«fAttribute.name»");
@@ -264,7 +269,7 @@ class FInterfaceDumpGeneratorExtension {
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«broadcast.className»().subscribe([this](
                         «var boolean first = true»
                         «FOR argument : broadcast.outArgs»
-                            «IF !first»,«ENDIF»«IF first = false»«ENDIF» const «argument.getTypeName(argument, true)»& «argument.name»
+                            «IF !first»,«ENDIF»«{first = false; ""}» const «argument.getTypeName(argument, true)»& «argument.name»
                         «ENDFOR»
                         ) {
                             // TODO: add mutex?

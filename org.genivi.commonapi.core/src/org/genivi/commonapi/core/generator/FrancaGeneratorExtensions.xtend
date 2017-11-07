@@ -2456,4 +2456,47 @@ class FrancaGeneratorExtensions {
         return itsCanonicalName.reverse.join(separatorCharacter.toString)
     }
 
+    def String generateCustomCode(String tag)
+    {
+        val Map<String, String> data = new HashMap<String, String>()
+
+        data.put("VideoSourceInclude", "
+#include <opencv2/opencv.hpp>
+#include <shared_memory_buffer/CSharedMemoryBuffer.hpp>
+        ")
+
+        data.put("VideoSourceCtor", "
+/* TODO: get rid of STATIC */
+static int width = 0;
+static int height = 0;
+static cv::VideoWriter capture;
+        ")
+
+        data.put("WRITE_VideoSourceCamerasInfo", "
+/* TODO: do this for all cameras */
+auto cameraInfo = data[0];
+width = cameraInfo.getFrameInfo().getImageSize().getWidth();
+height = cameraInfo.getFrameInfo().getImageSize().getHeight();
+capture.open(\"Video.avi\", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(width, height));
+        ")
+
+        data.put("WRITE_VideoSourceFrames", "
+if (data.empty())
+{
+    ELOG_WRN << \"Received empty frame data\";
+}
+std::cout << \"Received frame: ts=\" << data[0].getTime() << std::endl;
+ManagedSharedMemoryBuffer::CSharedMemoryBuffer buff(data[0].getKey());
+uint8_t* frame_data = buff.getBuffer();
+cv::Mat frame(height, width, CV_8UC3, frame_data);
+capture << frame;
+cv::imshow(\"frame\", frame);
+cv::waitKey(1);
+        ")
+
+        if (data.containsKey(tag))
+        {
+            return data.get(tag);
+        }
+    }
 }
