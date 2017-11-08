@@ -9,6 +9,7 @@ import org.genivi.commonapi.core.preferences.PreferenceConstants
 
 class FInterfacePlaybackGeneratorExtension {
     @Inject private extension FrancaGeneratorExtensions
+    @Inject private extension FNativeInjections
 
     def generatePlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
@@ -27,7 +28,7 @@ class FInterfacePlaybackGeneratorExtension {
         #include <«fInterface.getStubHeaderPath»>
 
         // TODO: move to CDataProvider
-        «generateCustomCode(fInterface.name + "PlaybackIncludes")»
+        «generateNativeInjection(fInterface.name + "PlaybackIncludes")»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -302,7 +303,7 @@ class FInterfacePlaybackGeneratorExtension {
         private:
             void initReaders()
             {
-                «generateCustomCode(fInterface.name + "PlaybackCtor")»
+                «generateNativeInjection(fInterface.name + "PlaybackCtor")»
 
                 m_readers = {
                 «FOR attribute : fInterface.attributes»
@@ -311,7 +312,7 @@ class FInterfacePlaybackGeneratorExtension {
                             {
                                 «attribute.getTypeName(fInterface, true)» data;
                                 m_reader.readItem("«attribute.name»", data);
-                                «generateCustomCode("READ_" + fInterface.name + attribute.name)»
+                                «generateNativeInjection("READ_" + fInterface.name + attribute.name)»
 
                                 «attribute.name»Element data_elem(data);
                                 visitor.visit«attribute.name»(data_elem);
@@ -326,7 +327,7 @@ class FInterfacePlaybackGeneratorExtension {
                             «FOR argument : broadcast.outArgs»
                                 «argument.getTypeName(fInterface, true)» «argument.name»_data;
                                 m_reader.readItem("«argument.name»", «argument.name»_data);
-                                «generateCustomCode("READ_" + fInterface.name + argument.name)»
+                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
 
                                 data_elem.set_«argument.name»(«argument.name»_data);
                             «ENDFOR»
