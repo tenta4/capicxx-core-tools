@@ -22,6 +22,7 @@ class FInterfaceDumpGeneratorExtension {
     @Inject private extension FTypeGenerator
     @Inject private extension FrancaGeneratorExtensions
     @Inject private extension FInterfaceProxyGenerator
+    @Inject private extension FNativeInjections
 
     var HashSet<FStructType> usedTypes;
 
@@ -238,6 +239,8 @@ class FInterfaceDumpGeneratorExtension {
         #include <«fInterface.proxyHeaderPath»>
         #include <«fInterface.proxyDumpWriterHeaderPath»>
 
+        «generateNativeInjection(fInterface.name + "Include")»
+
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
 
@@ -250,11 +253,14 @@ class FInterfaceDumpGeneratorExtension {
                 , m_writer("«fInterface.name»_dump.json")
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
+                «generateNativeInjection(fInterface.name + "Ctor")»
 
                 «FOR fAttribute : fInterface.attributes»
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
+                            «generateNativeInjection("WRITE_" + fInterface.name + fAttribute.name)»
+
                             // TODO: add mutex?
                             m_writer.beginQuery("«fAttribute.className»");
                             m_writer.adjustQuery(data, "«fAttribute.name»");
@@ -264,12 +270,13 @@ class FInterfaceDumpGeneratorExtension {
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«broadcast.className»().subscribe([this](
                         «var boolean first = true»
                         «FOR argument : broadcast.outArgs»
-                            «IF !first»,«ENDIF»«IF first = false»«ENDIF» const «argument.getTypeName(argument, true)»& «argument.name»
+                            «IF !first»,«ENDIF»«{first = false; ""}» const «argument.getTypeName(argument, true)»& «argument.name»
                         «ENDFOR»
                         ) {
                             // TODO: add mutex?
                             m_writer.beginQuery("«broadcast.className»");
                             «FOR argument : broadcast.outArgs»
+                                «generateNativeInjection("WRITE_" + fInterface.name + argument.name)»
                                 m_writer.adjustQuery(«argument.name», "«argument.name»");
                             «ENDFOR»
                         });

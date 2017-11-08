@@ -2455,5 +2455,4 @@ class FrancaGeneratorExtensions {
          */
         return itsCanonicalName.reverse.join(separatorCharacter.toString)
     }
-
 }
