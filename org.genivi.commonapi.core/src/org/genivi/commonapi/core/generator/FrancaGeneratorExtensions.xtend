@@ -2516,6 +2516,10 @@ if (prev_ts != m_curr_ts)
 }
 cv::Mat frame;
 capture >> frame;
+if (frame.empty())
+{
+    return;
+}
 
 std::size_t buff_size = frame.cols * frame.rows * 3;
 ManagedSharedMemoryBuffer::CSharedMemoryBuffer shm_buffer(

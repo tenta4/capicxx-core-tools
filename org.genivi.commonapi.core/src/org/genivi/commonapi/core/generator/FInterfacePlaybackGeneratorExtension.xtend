@@ -283,6 +283,11 @@ class FInterfacePlaybackGeneratorExtension {
                 {
                     func->second(visitor);
                 }
+                else
+                {
+                    std::cout << "WARNING: " << m_reader.getRecordName(ts_id)
+                              << " will not processed" << std::endl;
+                }
             }
 
             const std::vector<int64_t>& getTimestamps() {
