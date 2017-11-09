@@ -304,14 +304,11 @@ class FInterfacePlaybackGeneratorExtension {
                 std::size_t prev_ts = m_curr_ts;
                 m_curr_ts = ts_id;
 
-                std::cout << prev_ts << " " << m_curr_ts << " PREV AND CURR\n";
                 if (m_curr_ts < prev_ts || // jump back
                     (m_reader.getTimestamps()[m_curr_ts] - m_reader.getTimestamps()[prev_ts]) > s_jump_time) // jump forward
                 {
-                    std::cout << " jump " << m_reader.getTimestamps()[ts_id] << std::endl;
                     for (auto record: m_reader.getGropedTimestamps())
                     {
-                        std::cout << record.first << " ";
                         providePastRecord(ts_id, record.second, visitor);
                     }
                 }
@@ -338,11 +335,9 @@ class FInterfacePlaybackGeneratorExtension {
                 if (iter == storage.begin())
                 {
                     // no records before this time
-                    std::cout << ": past ts not exists\n";
                     return;
                 }
                 iter = std::prev(iter);
-                std::cout << m_reader.getTimestamps()[iter->m_ts_idx] << " past ts\n";
                 provideRecord(iter->m_ts_idx, visitor);
             }
 
