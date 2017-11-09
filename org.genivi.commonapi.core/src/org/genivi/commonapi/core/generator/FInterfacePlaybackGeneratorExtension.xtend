@@ -142,16 +142,6 @@ class FInterfacePlaybackGeneratorExtension {
             std::fstream::pos_type m_pos;
         };
 
-        struct STime
-        {
-            std::size_t m_ts_idx;
-            int64_t m_ts;
-            bool operator < (const STime& in) const
-            {
-                return m_ts < in.m_ts;
-            }
-        };
-
         static const std::string s_time_key = "\"time\"";
         static const std::string s_name_key = "\"name\"";
 
@@ -160,7 +150,7 @@ class FInterfacePlaybackGeneratorExtension {
         public:
             JsonDumpReader(const std::string& file_name);
             const std::vector<int64_t>& getTimestamps() const;
-            const std::map<std::string, std::vector<STime>>& getGropedTimestamps() const;
+            const std::map<std::string, std::vector<std::size_t>>& getGropedTimestamps() const;
 
             void jump(std::size_t ts_id);
             const std::string& getRecordName(std::size_t ts_id);
@@ -176,7 +166,7 @@ class FInterfacePlaybackGeneratorExtension {
 
             std::vector<SCall> m_calls;
             std::vector<int64_t> m_timestamps;
-            std::map<std::string, std::vector<STime>> m_grouped_timestamps;
+            std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
 
             std::map<std::string, std::function<void(CVisitor&, boost::property_tree::ptree pt)>> m_functions;
             boost::property_tree::ptree m_curr_pt;
@@ -196,7 +186,7 @@ class FInterfacePlaybackGeneratorExtension {
             return m_timestamps;
         }
 
-        const std::map<std::string, std::vector<STime>>& JsonDumpReader::getGropedTimestamps() const {
+        const std::map<std::string, std::vector<std::size_t>>& JsonDumpReader::getGropedTimestamps() const {
             return m_grouped_timestamps;
         }
 
@@ -237,7 +227,7 @@ class FInterfacePlaybackGeneratorExtension {
                     // skip "params" keyword
                     std::getline(m_file, line);
 
-                    m_grouped_timestamps[name_val].push_back({m_calls.size(), m_timestamps.back()});
+                    m_grouped_timestamps[name_val].push_back(m_calls.size());
 
                     // return to "{" symbol
                     m_calls.push_back({name_val, m_file.tellg() - std::fstream::pos_type(2)});
@@ -305,7 +295,7 @@ class FInterfacePlaybackGeneratorExtension {
                 m_curr_ts = ts_id;
 
                 if (m_curr_ts < prev_ts || // jump back
-                    (m_reader.getTimestamps()[m_curr_ts] - m_reader.getTimestamps()[prev_ts]) > s_jump_time) // jump forward
+                   (m_reader.getTimestamps()[m_curr_ts] - m_reader.getTimestamps()[prev_ts]) > s_jump_time) // jump forward
                 {
                     for (auto record: m_reader.getGropedTimestamps())
                     {
@@ -328,17 +318,22 @@ class FInterfacePlaybackGeneratorExtension {
             std::size_t m_curr_ts;
 
         private: // methods
-            void providePastRecord(std::size_t ts_id, const std::vector<STime>& storage, CVisitor &visitor)
+            void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, CVisitor &visitor)
             {
-                int64_t time = m_reader.getTimestamps()[ts_id];
-                auto iter = std::upper_bound(storage.begin(), storage.end(), STime{ts_id, time});
+                auto iter = std::upper_bound(storage.begin(), storage.end(), ts_id,
+                    [this](std::size_t a, std::size_t b) -> bool
+                    {
+                        return m_reader.getTimestamps()[a] <
+                               m_reader.getTimestamps()[b];
+                    });
+
                 if (iter == storage.begin())
                 {
                     // no records before this time
                     return;
                 }
                 iter = std::prev(iter);
-                provideRecord(iter->m_ts_idx, visitor);
+                provideRecord(*iter, visitor);
             }
 
             void provideRecord(std::size_t ts_id, CVisitor &visitor)
@@ -356,7 +351,6 @@ class FInterfacePlaybackGeneratorExtension {
                               << " will not processed" << std::endl;
                 }
             }
-
 
             void initReaders()
             {
