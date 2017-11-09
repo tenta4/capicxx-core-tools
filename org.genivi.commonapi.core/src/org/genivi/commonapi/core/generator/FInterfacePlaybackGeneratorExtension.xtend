@@ -142,6 +142,16 @@ class FInterfacePlaybackGeneratorExtension {
             std::fstream::pos_type m_pos;
         };
 
+        struct STime
+        {
+            std::size_t m_ts_idx;
+            int64_t m_ts;
+            bool operator < (const STime& in) const
+            {
+                return m_ts < in.m_ts;
+            }
+        };
+
         static const std::string s_time_key = "\"time\"";
         static const std::string s_name_key = "\"name\"";
 
@@ -149,7 +159,8 @@ class FInterfacePlaybackGeneratorExtension {
         {
         public:
             JsonDumpReader(const std::string& file_name);
-            const std::vector<int64_t>& getTimestamps();
+            const std::vector<int64_t>& getTimestamps() const;
+            const std::map<std::string, std::vector<STime>>& getGropedTimestamps() const;
 
             void jump(std::size_t ts_id);
             const std::string& getRecordName(std::size_t ts_id);
@@ -163,8 +174,9 @@ class FInterfacePlaybackGeneratorExtension {
 
             std::ifstream m_file;
 
-            std::vector<int64_t> m_timestamps;
             std::vector<SCall> m_calls;
+            std::vector<int64_t> m_timestamps;
+            std::map<std::string, std::vector<STime>> m_grouped_timestamps;
 
             std::map<std::string, std::function<void(CVisitor&, boost::property_tree::ptree pt)>> m_functions;
             boost::property_tree::ptree m_curr_pt;
@@ -180,8 +192,12 @@ class FInterfacePlaybackGeneratorExtension {
             return m_calls.at(ts_id).m_name;
         }
 
-        const std::vector<int64_t>& JsonDumpReader::getTimestamps() {
+        const std::vector<int64_t>& JsonDumpReader::getTimestamps() const {
             return m_timestamps;
+        }
+
+        const std::map<std::string, std::vector<STime>>& JsonDumpReader::getGropedTimestamps() const {
+            return m_grouped_timestamps;
         }
 
         bool JsonDumpReader::findBracket(const std::string& src, bool is_begin) {
@@ -220,6 +236,8 @@ class FInterfacePlaybackGeneratorExtension {
 
                     // skip "params" keyword
                     std::getline(m_file, line);
+
+                    m_grouped_timestamps[name_val].push_back({m_calls.size(), m_timestamps.back()});
 
                     // return to "{" symbol
                     m_calls.push_back({name_val, m_file.tellg() - std::fstream::pos_type(2)});
@@ -266,17 +284,70 @@ class FInterfacePlaybackGeneratorExtension {
             return true;
         }
 
+        const static int64_t s_jump_time = 1000000;
+
         class CDataProvider
         {
-        public:
+        public: // methods
             CDataProvider(const std::string& file_name)
                 : m_reader(file_name)
+                , m_curr_ts(std::numeric_limits<std::size_t>::max())
             {
                 initReaders();
             }
             void provide(std::size_t ts_id, CVisitor& visitor)
             {
+                if (ts_id >= m_reader.getTimestamps().size())
+                {
+                    throw std::runtime_error("Request data for non-existent timestamp id");
+                }
+                std::size_t prev_ts = m_curr_ts;
                 m_curr_ts = ts_id;
+
+                std::cout << prev_ts << " " << m_curr_ts << " PREV AND CURR\n";
+                if (m_curr_ts < prev_ts || // jump back
+                    (m_reader.getTimestamps()[m_curr_ts] - m_reader.getTimestamps()[prev_ts]) > s_jump_time) // jump forward
+                {
+                    std::cout << " jump " << m_reader.getTimestamps()[ts_id] << std::endl;
+                    for (auto record: m_reader.getGropedTimestamps())
+                    {
+                        std::cout << record.first << " ";
+                        providePastRecord(ts_id, record.second, visitor);
+                    }
+                }
+                else
+                {
+                    provideRecord(ts_id, visitor);
+                }
+            }
+
+            const std::vector<int64_t>& getTimestamps() {
+                return m_reader.getTimestamps();
+            }
+        private: // fields
+
+            JsonDumpReader m_reader;
+            std::map<std::string, std::function<void(CVisitor&)>> m_readers;
+            std::size_t m_curr_ts;
+
+        private: // methods
+            void providePastRecord(std::size_t ts_id, const std::vector<STime>& storage, CVisitor &visitor)
+            {
+                int64_t time = m_reader.getTimestamps()[ts_id];
+                auto iter = std::upper_bound(storage.begin(), storage.end(), STime{ts_id, time});
+                if (iter == storage.begin())
+                {
+                    // no records before this time
+                    std::cout << ": past ts not exists\n";
+                    return;
+                }
+                iter = std::prev(iter);
+                std::cout << m_reader.getTimestamps()[iter->m_ts_idx] << " past ts\n";
+                provideRecord(iter->m_ts_idx, visitor);
+            }
+
+            void provideRecord(std::size_t ts_id, CVisitor &visitor)
+            {
                 m_reader.jump(ts_id);
 
                 auto func = m_readers.find(m_reader.getRecordName(ts_id));
@@ -291,16 +362,7 @@ class FInterfacePlaybackGeneratorExtension {
                 }
             }
 
-            const std::vector<int64_t>& getTimestamps() {
-                return m_reader.getTimestamps();
-            }
-        private:
 
-            JsonDumpReader m_reader;
-            std::map<std::string, std::function<void(CVisitor&)>> m_readers;
-            std::size_t m_curr_ts;
-
-        private:
             void initReaders()
             {
                 «generateNativeInjection(fInterface.name + "PlaybackCtor")»
