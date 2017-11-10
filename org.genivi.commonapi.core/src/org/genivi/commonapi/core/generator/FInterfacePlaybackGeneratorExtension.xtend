@@ -149,7 +149,8 @@ class FInterfacePlaybackGeneratorExtension {
         {
         public:
             JsonDumpReader(const std::string& file_name);
-            const std::vector<int64_t>& getTimestamps();
+            const std::vector<int64_t>& getTimestamps() const;
+            const std::map<std::string, std::vector<std::size_t>>& getGropedTimestamps() const;
 
             void jump(std::size_t ts_id);
             const std::string& getRecordName(std::size_t ts_id);
@@ -163,8 +164,9 @@ class FInterfacePlaybackGeneratorExtension {
 
             std::ifstream m_file;
 
-            std::vector<int64_t> m_timestamps;
             std::vector<SCall> m_calls;
+            std::vector<int64_t> m_timestamps;
+            std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
 
             std::map<std::string, std::function<void(CVisitor&, boost::property_tree::ptree pt)>> m_functions;
             boost::property_tree::ptree m_curr_pt;
@@ -180,8 +182,12 @@ class FInterfacePlaybackGeneratorExtension {
             return m_calls.at(ts_id).m_name;
         }
 
-        const std::vector<int64_t>& JsonDumpReader::getTimestamps() {
+        const std::vector<int64_t>& JsonDumpReader::getTimestamps() const {
             return m_timestamps;
+        }
+
+        const std::map<std::string, std::vector<std::size_t>>& JsonDumpReader::getGropedTimestamps() const {
+            return m_grouped_timestamps;
         }
 
         bool JsonDumpReader::findBracket(const std::string& src, bool is_begin) {
@@ -220,6 +226,8 @@ class FInterfacePlaybackGeneratorExtension {
 
                     // skip "params" keyword
                     std::getline(m_file, line);
+
+                    m_grouped_timestamps[name_val].push_back(m_calls.size());
 
                     // return to "{" symbol
                     m_calls.push_back({name_val, m_file.tellg() - std::fstream::pos_type(2)});
@@ -266,17 +274,70 @@ class FInterfacePlaybackGeneratorExtension {
             return true;
         }
 
+        const static int64_t s_jump_time = 1000000;
+
         class CDataProvider
         {
-        public:
+        public: // methods
             CDataProvider(const std::string& file_name)
                 : m_reader(file_name)
+                , m_curr_ts(std::numeric_limits<std::size_t>::max())
             {
                 initReaders();
             }
             void provide(std::size_t ts_id, CVisitor& visitor)
             {
+                if (ts_id >= m_reader.getTimestamps().size())
+                {
+                    throw std::runtime_error("Request data for non-existent timestamp id");
+                }
+                std::size_t prev_ts = m_curr_ts;
                 m_curr_ts = ts_id;
+
+                if (m_curr_ts < prev_ts || // jump back
+                   (m_reader.getTimestamps()[m_curr_ts] - m_reader.getTimestamps()[prev_ts]) > s_jump_time) // jump forward
+                {
+                    for (auto record: m_reader.getGropedTimestamps())
+                    {
+                        providePastRecord(ts_id, record.second, visitor);
+                    }
+                }
+                else
+                {
+                    provideRecord(ts_id, visitor);
+                }
+            }
+
+            const std::vector<int64_t>& getTimestamps() {
+                return m_reader.getTimestamps();
+            }
+        private: // fields
+
+            JsonDumpReader m_reader;
+            std::map<std::string, std::function<void(CVisitor&)>> m_readers;
+            std::size_t m_curr_ts;
+
+        private: // methods
+            void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, CVisitor &visitor)
+            {
+                auto iter = std::upper_bound(storage.begin(), storage.end(), ts_id,
+                    [this](std::size_t a, std::size_t b) -> bool
+                    {
+                        return m_reader.getTimestamps()[a] <
+                               m_reader.getTimestamps()[b];
+                    });
+
+                if (iter == storage.begin())
+                {
+                    // no records before this time
+                    return;
+                }
+                iter = std::prev(iter);
+                provideRecord(*iter, visitor);
+            }
+
+            void provideRecord(std::size_t ts_id, CVisitor &visitor)
+            {
                 m_reader.jump(ts_id);
 
                 auto func = m_readers.find(m_reader.getRecordName(ts_id));
@@ -291,16 +352,6 @@ class FInterfacePlaybackGeneratorExtension {
                 }
             }
 
-            const std::vector<int64_t>& getTimestamps() {
-                return m_reader.getTimestamps();
-            }
-        private:
-
-            JsonDumpReader m_reader;
-            std::map<std::string, std::function<void(CVisitor&)>> m_readers;
-            std::size_t m_curr_ts;
-
-        private:
             void initReaders()
             {
                 «generateNativeInjection(fInterface.name + "PlaybackCtor")»
