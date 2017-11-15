@@ -66,6 +66,72 @@ class FInterfaceDumpGeneratorExtension {
     '''
 
     def dispatch extGenerateTypeSerrialization(FUnionType fUnionType, FInterface fInterface) '''
+        «FOR fField : fUnionType.elements»
+            «extGenerateSerrializationMain(fField.type, fInterface)»
+        «ENDFOR»
+
+        #ifndef BOOST«fUnionType.getDefineName(fInterface)»
+        #define BOOST«fUnionType.getDefineName(fInterface)»
+        DEFINE_BOOST_VARIANT(
+        , Boost«fUnionType.name»,
+        «FOR fField : fUnionType.elements»
+            («fField.getTypeName(fInterface, true)»)
+        «ENDFOR»
+        )
+        #endif // BOOST«fUnionType.getDefineName(fInterface)»
+
+        namespace JsonSerializer {
+        namespace Private{
+
+            class my_visitor : public boost::static_visitor<«fUnionType.getElementName(fInterface, true)»>
+            {
+            public:
+                template<class T>
+                «fUnionType.getElementName(fInterface, true)» operator()(const T& i) const
+                {
+                    «fUnionType.getElementName(fInterface, true)» variant_value = i;
+                    return variant_value;
+                }
+            };
+
+            // TODO: hardcoded template parameter ::v1::Ipc::RenderingEngineTypes::Variant.
+            // Need to specificate for «fUnionType.name»
+            // but there is some compilation problems with it
+            template<>
+            struct TPtreeSerializer<::v1::Ipc::RenderingEngineTypes::Variant>
+            {
+                static void read(::v1::Ipc::RenderingEngineTypes::Variant& out, const boost::property_tree::ptree& ptree)
+                {
+                    Boost«fUnionType.name» v;
+                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::read(v, ptree);
+
+                    «fUnionType.getElementName(fInterface, true)» variant_value =
+                            boost::apply_visitor( my_visitor(), v);
+
+                    out.setValue(variant_value);
+                    out.setType((v1::Ipc::RenderingEngineTypes::EVariantType::Literal)(
+                                    variant_value.getMaxValueType() - variant_value.getValueType()));
+                }
+                static void write(const ::v1::Ipc::RenderingEngineTypes::Variant& in, boost::property_tree::ptree& ptree)
+                {
+                    Boost«fUnionType.name» v;
+                    switch (in.getValue().getMaxValueType() - in.getValue().getValueType())
+                        {
+                        «var int counter = 0»
+                        «FOR fField : fUnionType.elements»
+                            case «counter»:
+                                v = {in.getValue().get<«fField.getTypeName(fInterface, true)»>()};
+                                break;
+                                «{counter += 1; ""}»
+                        «ENDFOR»
+                    }
+
+                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::write(v, ptree);
+                }
+            };
+        }
+        }
+
     '''
 
     def dispatch extGenerateTypeSerrialization(FStructType fStructType, FInterface fInterface) '''
@@ -120,6 +186,15 @@ class FInterfaceDumpGeneratorExtension {
 
         «FOR broadcast : fInterface.broadcasts»
             «FOR argument : broadcast.outArgs»
+                «extGenerateSerrializationMain(argument.type, fInterface)»
+            «ENDFOR»
+        «ENDFOR»
+
+        «FOR methods : fInterface.methods»
+            «FOR argument : methods.inArgs»
+                «extGenerateSerrializationMain(argument.type, fInterface)»
+            «ENDFOR»
+            «FOR argument : methods.outArgs»
                 «extGenerateSerrializationMain(argument.type, fInterface)»
             «ENDFOR»
         «ENDFOR»
@@ -282,6 +357,24 @@ class FInterfaceDumpGeneratorExtension {
                         });
                 «ENDFOR»
             }
+
+            «FOR method : fInterface.methods»
+                «FTypeGenerator::generateComments(method, false)»
+                «method.generateDefinition(true)» {
+                    std::cout << "«method.name» call" << std::endl;
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»(
+                        «method.generateMethodArgumentList()»
+                    );
+                    m_writer.beginQuery("«method.name»");
+                    «FOR argument : method.inArgs»
+                        m_writer.adjustQuery(_«argument.name», "«argument.name»");
+                    «ENDFOR»
+                    «FOR argument : method.outArgs»
+                        m_writer.adjustQuery(_«argument.name», "«argument.name»");
+                    «ENDFOR»
+                }
+            «ENDFOR»
+
         private:
             «fInterface.proxyDumpWriterClassName» m_writer;
         };

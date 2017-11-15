@@ -272,6 +272,10 @@ class FrancaGeneratorExtensions {
         (fStructType as FModelElement).getElementName(fInterface, true).toUpperCase.replace('::', '_')
     }
 
+    def getDefineName(FUnionType fUnionType, FInterface fInterface) {
+        (fUnionType as FModelElement).getElementName(fInterface, true).toUpperCase.replace('::', '_')
+    }
+
     def getDefineName(FEnumerationType fEnumerationType, FInterface fInterface) {
         (fEnumerationType as FModelElement).getElementName(fInterface, true).toUpperCase.replace('::', '_')
     }
@@ -544,6 +548,26 @@ class FrancaGeneratorExtensions {
             signature += ", const CommonAPI::CallInfo *_info"
             if (_isDefault)
                 signature += " = nullptr"
+        }
+        return signature
+    }
+
+    def generateMethodArgumentList(FMethod fMethod) {
+        var signature = fMethod.inArgs.map['_' + elementName].join(', ')
+
+        if (!fMethod.inArgs.empty)
+            signature = signature + ', '
+
+        signature = signature + '_internalCallStatus'
+
+        if (fMethod.hasError)
+            signature = signature + ', ' + ' _error'
+
+        if (!fMethod.outArgs.empty)
+            signature = signature + ', ' + fMethod.outArgs.map['_' + elementName].join(', ')
+
+        if (!fMethod.fireAndForget) {
+            signature += ", _info"
         }
         return signature
     }
