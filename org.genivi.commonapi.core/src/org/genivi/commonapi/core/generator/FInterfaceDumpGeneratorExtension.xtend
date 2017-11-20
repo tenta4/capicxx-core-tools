@@ -7,6 +7,7 @@ import org.eclipse.xtext.generator.IFileSystemAccess
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 import org.genivi.commonapi.core.preferences.PreferenceConstants
+import org.genivi.commonapi.core.preferences.FPreferences
 
 import org.franca.core.franca.FTypeRef
 import org.franca.core.franca.FStructType
@@ -25,10 +26,12 @@ class FInterfaceDumpGeneratorExtension {
     @Inject private extension FNativeInjections
 
     var HashSet<FStructType> usedTypes;
+    var boolean generateSyncCalls = true
 
     def generateDumper(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
         usedTypes = new HashSet<FStructType>
+        generateSyncCalls = FPreferences::getInstance.getPreference(PreferenceConstants::P_GENERATE_SYNC_CALLS, "true").equals("true")
         fileSystemAccess.generateFile(fInterface.serrializationHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateSerrialiation(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWrapperHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWrapper(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWriterHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWriter(deploymentAccessor, modelid))
@@ -66,6 +69,72 @@ class FInterfaceDumpGeneratorExtension {
     '''
 
     def dispatch extGenerateTypeSerrialization(FUnionType fUnionType, FInterface fInterface) '''
+        «FOR fField : fUnionType.elements»
+            «extGenerateSerrializationMain(fField.type, fInterface)»
+        «ENDFOR»
+
+        #ifndef BOOST«fUnionType.getDefineName(fInterface)»
+        #define BOOST«fUnionType.getDefineName(fInterface)»
+        DEFINE_BOOST_VARIANT(
+        , Boost«fUnionType.name»,
+        «FOR fField : fUnionType.elements»
+            («fField.getTypeName(fInterface, true)»)
+        «ENDFOR»
+        )
+        #endif // BOOST«fUnionType.getDefineName(fInterface)»
+
+        namespace JsonSerializer {
+        namespace Private{
+
+            class my_visitor : public boost::static_visitor<«fUnionType.getElementName(fInterface, true)»>
+            {
+            public:
+                template<class T>
+                «fUnionType.getElementName(fInterface, true)» operator()(const T& i) const
+                {
+                    «fUnionType.getElementName(fInterface, true)» variant_value = i;
+                    return variant_value;
+                }
+            };
+
+            // TODO: hardcoded template parameter ::v1::Ipc::RenderingEngineTypes::Variant.
+            // Need to specificate for «fUnionType.name»
+            // but there is some compilation problems with it
+            template<>
+            struct TPtreeSerializer<::v1::Ipc::RenderingEngineTypes::Variant>
+            {
+                static void read(::v1::Ipc::RenderingEngineTypes::Variant& out, const boost::property_tree::ptree& ptree)
+                {
+                    Boost«fUnionType.name» v;
+                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::read(v, ptree);
+
+                    «fUnionType.getElementName(fInterface, true)» variant_value =
+                            boost::apply_visitor( my_visitor(), v);
+
+                    out.setValue(variant_value);
+                    out.setType((v1::Ipc::RenderingEngineTypes::EVariantType::Literal)(
+                                    variant_value.getMaxValueType() - variant_value.getValueType()));
+                }
+                static void write(const ::v1::Ipc::RenderingEngineTypes::Variant& in, boost::property_tree::ptree& ptree)
+                {
+                    Boost«fUnionType.name» v;
+                    switch (in.getValue().getMaxValueType() - in.getValue().getValueType())
+                        {
+                        «var int counter = 0»
+                        «FOR fField : fUnionType.elements»
+                            case «counter»:
+                                v = {in.getValue().get<«fField.getTypeName(fInterface, true)»>()};
+                                break;
+                                «{counter += 1; ""}»
+                        «ENDFOR»
+                    }
+
+                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::write(v, ptree);
+                }
+            };
+        }
+        }
+
     '''
 
     def dispatch extGenerateTypeSerrialization(FStructType fStructType, FInterface fInterface) '''
@@ -120,6 +189,15 @@ class FInterfaceDumpGeneratorExtension {
 
         «FOR broadcast : fInterface.broadcasts»
             «FOR argument : broadcast.outArgs»
+                «extGenerateSerrializationMain(argument.type, fInterface)»
+            «ENDFOR»
+        «ENDFOR»
+
+        «FOR methods : fInterface.methods»
+            «FOR argument : methods.inArgs»
+                «extGenerateSerrializationMain(argument.type, fInterface)»
+            «ENDFOR»
+            «FOR argument : methods.outArgs»
                 «extGenerateSerrializationMain(argument.type, fInterface)»
             «ENDFOR»
         «ENDFOR»
@@ -247,6 +325,12 @@ class FInterfaceDumpGeneratorExtension {
         template <typename ..._AttributeExtensions>
         class «fInterface.proxyDumpWrapperClassName» : public «fInterface.proxyClassName»<_AttributeExtensions...>
         {
+            «FOR method : fInterface.methods»
+                «IF !method.isFireAndForget»
+                    typedef typename «fInterface.proxyClassName»<_AttributeExtensions...>::«method.asyncCallbackClassName» «method.asyncCallbackClassName»;
+                «ENDIF»
+            «ENDFOR»
+
         public:
             «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
@@ -282,9 +366,63 @@ class FInterfaceDumpGeneratorExtension {
                         });
                 «ENDFOR»
             }
+
+            «FOR method : fInterface.methods»
+                «IF generateSyncCalls || method.isFireAndForget»
+                    virtual «method.generateDefinition(true)»;
+
+                «ENDIF»
+                «IF !method.isFireAndForget»
+                    virtual «method.generateAsyncDefinition(true)»;
+
+                «ENDIF»
+            «ENDFOR»
+
         private:
             «fInterface.proxyDumpWriterClassName» m_writer;
         };
+
+        «FOR method : fInterface.methods»
+            «IF generateSyncCalls || method.isFireAndForget»
+            template <typename ... _AttributeExtensions>
+            «method.generateDefinitionWithin(fInterface.proxyDumpWrapperClassName + '<_AttributeExtensions...>', false)» {
+                std::cout << "«method.name» call" << std::endl;
+                «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»(
+                    «method.generateMethodArgumentList»
+                );
+                m_writer.beginQuery("«method.name»");
+                «FOR argument : method.inArgs»
+                    m_writer.adjustQuery(_«argument.name», "«argument.name»");
+                «ENDFOR»
+                «FOR argument : method.outArgs»
+                    m_writer.adjustQuery(_«argument.name», "«argument.name»");
+                «ENDFOR»
+            }
+
+            «ENDIF»
+            «IF !method.isFireAndForget»
+                template <typename ... _AttributeExtensions>
+                «method.generateAsyncDefinitionWithin(fInterface.proxyDumpWrapperClassName + '<_AttributeExtensions...>', false)» {
+                    std::cout << "call «method.name» ASYNC" << std::endl;
+
+                    «method.asyncCallbackClassName» cb_wrapper = [=](«method.generateASyncTypedefSignature(true)»)
+                    {
+                        std::cout << "callback getRoute ASYNC" << std::endl;
+                        _callback(«method.generateASyncTypedefAguments»);
+
+                        m_writer.beginQuery("«method.elementName»Async");
+                        «FOR arg : method.inArgs»
+                            m_writer.adjustQuery(_«arg.name», "«arg.name»");
+                        «ENDFOR»
+                        «FOR arg : method.outArgs»
+                            m_writer.adjustQuery(«arg.name», "«arg.name»");
+                        «ENDFOR»
+                    };
+
+                    return «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»Async(«method.generateAsyncMethodArguments»);
+                }
+            «ENDIF»
+        «ENDFOR»
 
         «fInterface.model.generateNamespaceEndDeclaration»
         «fInterface.generateVersionNamespaceEnd»

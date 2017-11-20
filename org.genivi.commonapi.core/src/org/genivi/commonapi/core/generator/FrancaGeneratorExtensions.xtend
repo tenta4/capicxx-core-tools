@@ -272,6 +272,10 @@ class FrancaGeneratorExtensions {
         (fStructType as FModelElement).getElementName(fInterface, true).toUpperCase.replace('::', '_')
     }
 
+    def getDefineName(FUnionType fUnionType, FInterface fInterface) {
+        (fUnionType as FModelElement).getElementName(fInterface, true).toUpperCase.replace('::', '_')
+    }
+
     def getDefineName(FEnumerationType fEnumerationType, FInterface fInterface) {
         (fEnumerationType as FModelElement).getElementName(fInterface, true).toUpperCase.replace('::', '_')
     }
@@ -544,6 +548,26 @@ class FrancaGeneratorExtensions {
             signature += ", const CommonAPI::CallInfo *_info"
             if (_isDefault)
                 signature += " = nullptr"
+        }
+        return signature
+    }
+
+    def generateMethodArgumentList(FMethod fMethod) {
+        var signature = fMethod.inArgs.map['_' + elementName].join(', ')
+
+        if (!fMethod.inArgs.empty)
+            signature = signature + ', '
+
+        signature = signature + '_internalCallStatus'
+
+        if (fMethod.hasError)
+            signature = signature + ', ' + ' _error'
+
+        if (!fMethod.outArgs.empty)
+            signature = signature + ', ' + fMethod.outArgs.map['_' + elementName].join(', ')
+
+        if (!fMethod.fireAndForget) {
+            signature += ", _info"
         }
         return signature
     }
@@ -902,6 +926,15 @@ class FrancaGeneratorExtensions {
         return signature
     }
 
+    def generateAsyncMethodArguments(FMethod fMethod) {
+        var signature = fMethod.inArgs.map['_' + elementName].join(', ')
+        if (!fMethod.inArgs.empty) {
+            signature = signature + ', '
+        }
+        signature = signature + 'cb_wrapper, _info'
+        return signature
+    }
+
     def getErrorType(FMethod _method) {
         var errorType = ""
         if (_method.hasError) {
@@ -1032,14 +1065,36 @@ class FrancaGeneratorExtensions {
         fMethod.errorEnum != null || fMethod.errors != null
     }
 
-    def generateASyncTypedefSignature(FMethod fMethod) {
+    def generateASyncTypedefSignature(FMethod fMethod, boolean argsPresent) {
         var signature = 'const CommonAPI::CallStatus&'
+        if (argsPresent)
+            signature = signature + ' cs';
 
         if (fMethod.hasError)
+        {
             signature = signature + ', const ' + fMethod.getErrorNameReference(fMethod.eContainer) + '&'
+            if (argsPresent)
+                signature = signature + ' res';
+        }
+        if (!fMethod.outArgs.empty)
+        {
+            if (argsPresent)
+                signature = signature + ', ' + fMethod.outArgs.map['const ' + getTypeName(fMethod, true) + '& ' + elementName].join(', ')
+            else
+                signature = signature + ', ' + fMethod.outArgs.map['const ' + getTypeName(fMethod, true) + '&'].join(', ')
+        }
+
+        return signature
+    }
+
+    def generateASyncTypedefAguments(FMethod fMethod) {
+        var signature = 'cs'
+
+        if (fMethod.hasError)
+            signature = signature + ', res'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', ' + fMethod.outArgs.map['const ' + getTypeName(fMethod, true) + '&'].join(', ')
+            signature = signature + ', ' + fMethod.outArgs.map[elementName].join(', ')
 
         return signature
     }
@@ -1047,7 +1102,7 @@ class FrancaGeneratorExtensions {
     def needsMangling(FMethod fMethod) {
         for (otherMethod : fMethod.containingInterface.methods) {
             if (otherMethod != fMethod && otherMethod.basicAsyncCallbackClassName == fMethod.basicAsyncCallbackClassName &&
-                otherMethod.generateASyncTypedefSignature != fMethod.generateASyncTypedefSignature) {
+                otherMethod.generateASyncTypedefSignature(false) != fMethod.generateASyncTypedefSignature(false)) {
                 return true
             }
         }
