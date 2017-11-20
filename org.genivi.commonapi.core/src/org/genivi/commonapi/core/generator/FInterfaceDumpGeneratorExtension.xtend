@@ -7,6 +7,7 @@ import org.eclipse.xtext.generator.IFileSystemAccess
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 import org.genivi.commonapi.core.preferences.PreferenceConstants
+import org.genivi.commonapi.core.preferences.FPreferences
 
 import org.franca.core.franca.FTypeRef
 import org.franca.core.franca.FStructType
@@ -25,10 +26,12 @@ class FInterfaceDumpGeneratorExtension {
     @Inject private extension FNativeInjections
 
     var HashSet<FStructType> usedTypes;
+    var boolean generateSyncCalls = true
 
     def generateDumper(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
         usedTypes = new HashSet<FStructType>
+        generateSyncCalls = FPreferences::getInstance.getPreference(PreferenceConstants::P_GENERATE_SYNC_CALLS, "true").equals("true")
         fileSystemAccess.generateFile(fInterface.serrializationHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateSerrialiation(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWrapperHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWrapper(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWriterHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWriter(deploymentAccessor, modelid))
@@ -322,6 +325,12 @@ class FInterfaceDumpGeneratorExtension {
         template <typename ..._AttributeExtensions>
         class «fInterface.proxyDumpWrapperClassName» : public «fInterface.proxyClassName»<_AttributeExtensions...>
         {
+            «FOR method : fInterface.methods»
+                «IF !method.isFireAndForget»
+                    typedef typename «fInterface.proxyClassName»<_AttributeExtensions...>::«method.asyncCallbackClassName» «method.asyncCallbackClassName»;
+                «ENDIF»
+            «ENDFOR»
+
         public:
             «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
@@ -359,25 +368,61 @@ class FInterfaceDumpGeneratorExtension {
             }
 
             «FOR method : fInterface.methods»
-                «FTypeGenerator::generateComments(method, false)»
-                «method.generateDefinition(true)» {
-                    std::cout << "«method.name» call" << std::endl;
-                    «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»(
-                        «method.generateMethodArgumentList()»
-                    );
-                    m_writer.beginQuery("«method.name»");
-                    «FOR argument : method.inArgs»
-                        m_writer.adjustQuery(_«argument.name», "«argument.name»");
-                    «ENDFOR»
-                    «FOR argument : method.outArgs»
-                        m_writer.adjustQuery(_«argument.name», "«argument.name»");
-                    «ENDFOR»
-                }
+                «IF generateSyncCalls || method.isFireAndForget»
+                    virtual «method.generateDefinition(true)»;
+
+                «ENDIF»
+                «IF !method.isFireAndForget»
+                    virtual «method.generateAsyncDefinition(true)»;
+
+                «ENDIF»
             «ENDFOR»
 
         private:
             «fInterface.proxyDumpWriterClassName» m_writer;
         };
+
+        «FOR method : fInterface.methods»
+            «IF generateSyncCalls || method.isFireAndForget»
+            template <typename ... _AttributeExtensions>
+            «method.generateDefinitionWithin(fInterface.proxyDumpWrapperClassName + '<_AttributeExtensions...>', false)» {
+                std::cout << "«method.name» call" << std::endl;
+                «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»(
+                    «method.generateMethodArgumentList»
+                );
+                m_writer.beginQuery("«method.name»");
+                «FOR argument : method.inArgs»
+                    m_writer.adjustQuery(_«argument.name», "«argument.name»");
+                «ENDFOR»
+                «FOR argument : method.outArgs»
+                    m_writer.adjustQuery(_«argument.name», "«argument.name»");
+                «ENDFOR»
+            }
+
+            «ENDIF»
+            «IF !method.isFireAndForget»
+                template <typename ... _AttributeExtensions>
+                «method.generateAsyncDefinitionWithin(fInterface.proxyDumpWrapperClassName + '<_AttributeExtensions...>', false)» {
+                    std::cout << "call «method.name» ASYNC" << std::endl;
+
+                    «method.asyncCallbackClassName» cb_wrapper = [=](«method.generateASyncTypedefSignature(true)»)
+                    {
+                        std::cout << "callback getRoute ASYNC" << std::endl;
+                        _callback(«method.generateASyncTypedefAguments»);
+
+                        m_writer.beginQuery("«method.elementName»Async");
+                        «FOR arg : method.inArgs»
+                            m_writer.adjustQuery(_«arg.name», "«arg.name»");
+                        «ENDFOR»
+                        «FOR arg : method.outArgs»
+                            m_writer.adjustQuery(«arg.name», "«arg.name»");
+                        «ENDFOR»
+                    };
+
+                    return «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»Async(«method.generateAsyncMethodArguments»);
+                }
+            «ENDIF»
+        «ENDFOR»
 
         «fInterface.model.generateNamespaceEndDeclaration»
         «fInterface.generateVersionNamespaceEnd»

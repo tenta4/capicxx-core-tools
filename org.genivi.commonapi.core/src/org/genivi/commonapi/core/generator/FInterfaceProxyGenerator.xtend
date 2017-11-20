@@ -413,7 +413,7 @@ class FInterfaceProxyGenerator {
         «var callbackDefinitions = new HashSet<String>()»
         «FOR fMethod : fInterface.methods»
             «IF !fMethod.isFireAndForget»
-                «val definitionSignature = fMethod.generateASyncTypedefSignature + fMethod.asyncCallbackClassName»
+                «val definitionSignature = fMethod.generateASyncTypedefSignature(false) + fMethod.asyncCallbackClassName»
                 «IF !callbackDefinitions.contains(definitionSignature)»
                     «IF fMethod.needsMangling»
                         /*
@@ -424,7 +424,7 @@ class FInterfaceProxyGenerator {
                          * type definitions in Franca if you actively use these typedefs in your code.
                          */
                     «ENDIF»
-                    typedef std::function<void(«fMethod.generateASyncTypedefSignature»)> «fMethod.asyncCallbackClassName»;
+                    typedef std::function<void(«fMethod.generateASyncTypedefSignature(false)»)> «fMethod.asyncCallbackClassName»;
                     «{callbackDefinitions.add(definitionSignature);""}»
                 «ENDIF»
             «ENDIF»
