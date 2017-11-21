@@ -229,8 +229,11 @@ class FInterfacePlaybackGeneratorExtension {
 
                     m_grouped_timestamps[name_val].push_back(m_calls.size());
 
+                    std::fstream::pos_type back_offset = 2;
+                    back_offset = (line.find('{') == std::string::npos) ? std::fstream::pos_type(3)
+                                                                        : back_offset;
                     // return to "{" symbol
-                    m_calls.push_back({name_val, m_file.tellg() - std::fstream::pos_type(2)});
+                    m_calls.push_back({name_val, m_file.tellg() - back_offset});
                 }
             }
 
