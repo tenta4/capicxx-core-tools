@@ -43,20 +43,77 @@ class FInterfacePlaybackGeneratorExtension {
             class «broadcast.name»Element;
         «ENDFOR»
 
-        class CVisitor
+        «FOR method : fInterface.methods»
+            class «method.name»Element;
+        «ENDFOR»
+
+        class IVisitor
         {
         public:
-            CVisitor(std::shared_ptr<«fInterface.getStubClassName»> transport)
-                : m_transport(transport) {}
-
             «FOR attribute : fInterface.attributes»
                 «IF attribute.isObservable»
-                    void visit«attribute.name»(const «attribute.name»Element&);
+                    virtual void visit_«attribute.name»(const «attribute.name»Element&) = 0;
                 «ENDIF»
             «ENDFOR»
 
             «FOR broadcast : fInterface.broadcasts»
-                void visit«broadcast.name»(const «broadcast.name»Element& data);
+                virtual void visit_«broadcast.name»(const «broadcast.name»Element& data) = 0;
+            «ENDFOR»
+
+            «FOR method : fInterface.methods»
+                virtual void visit_«method.name»(const «method.name»Element& data) = 0;
+            «ENDFOR»
+        };
+
+        class CServerVisitor : public IVisitor
+        {
+        public:
+            CServerVisitor(std::shared_ptr<«fInterface.getStubClassName»> transport)
+                : m_transport(transport) {}
+
+            «FOR attribute : fInterface.attributes»
+                «IF attribute.isObservable»
+                    void visit_«attribute.name»(const «attribute.name»Element&) override;
+                «ENDIF»
+            «ENDFOR»
+
+            «FOR broadcast : fInterface.broadcasts»
+                void visit_«broadcast.name»(const «broadcast.name»Element& data) override;
+            «ENDFOR»
+
+            «FOR method : fInterface.methods»
+                virtual void visit_«method.name»(const «method.name»Element& data) override{
+                    // nothing to do with methods on server side
+                }
+            «ENDFOR»
+
+        private:
+            std::shared_ptr<«fInterface.getStubClassName»> m_transport;
+        };
+
+        class CClientVisitor : public IVisitor
+        {
+        public:
+            CClientVisitor(std::shared_ptr<«fInterface.getStubClassName»> transport)
+                : m_transport(transport) {}
+
+            «FOR attribute : fInterface.attributes»
+                «IF attribute.isObservable»
+                    void visit_«attribute.name»(const «attribute.name»Element&) {
+                        // nothing to do with attributes on client side
+                    }
+                «ENDIF»
+            «ENDFOR»
+
+            «FOR broadcast : fInterface.broadcasts»
+                void visit_«broadcast.name»(const «broadcast.name»Element& data) override
+                {
+                    // nothing to do with broadcasts on client side
+                }
+            «ENDFOR»
+
+            «FOR method : fInterface.methods»
+                virtual void visit_«method.name»(const «method.name»Element& data) override;
             «ENDFOR»
 
         private:
@@ -65,9 +122,10 @@ class FInterfacePlaybackGeneratorExtension {
 
         class IElement
         {
-            virtual void visit(CVisitor& visitor) = 0;
+            virtual void visit(IVisitor& visitor) = 0;
         };
 
+        // classes for service's attributes
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
             class «attribute.name»Element : public IElement
@@ -76,8 +134,8 @@ class FInterfacePlaybackGeneratorExtension {
                 «attribute.name»Element(const «attribute.getTypeName(fInterface, true)»& data)
                     : m_data(data){}
 
-                void visit(CVisitor& visitor) override {
-                    visitor.visit«attribute.name»(*this);
+                void visit(IVisitor& visitor) override {
+                    visitor.visit_«attribute.name»(*this);
                 }
 
                 const «attribute.getTypeName(fInterface, true)»& getData() const {
@@ -91,12 +149,13 @@ class FInterfacePlaybackGeneratorExtension {
             «ENDIF»
         «ENDFOR»
 
+        // classes for service's broadcasts
         «FOR broadcast : fInterface.broadcasts»
             class «broadcast.name»Element : public IElement
             {
             public:
-                void visit(CVisitor& visitor) override {
-                    visitor.visit«broadcast.name»(*this);
+                void visit(IVisitor& visitor) override {
+                    visitor.visit_«broadcast.name»(*this);
                 }
 
                 «FOR argument : broadcast.outArgs»
@@ -115,9 +174,37 @@ class FInterfacePlaybackGeneratorExtension {
             }; // class «broadcast.name»Element
         «ENDFOR»
 
+        // classes for service's methods
+        «FOR method : fInterface.methods»
+            class «method.name»Element : public IElement
+            {
+            public:
+                void visit(IVisitor& visitor) override {
+                    visitor.visit_«method.name»(*this);
+                }
+
+                «FOR argument : method.outArgs»
+                    void set_«argument.name»(const «argument.getTypeName(fInterface, true)»& data) {
+                        m_«argument.name» = data;
+                    }
+
+                    const «argument.getTypeName(fInterface, true)»& get_«argument.name»() const {
+                        return m_«argument.name»;
+                    }
+                «ENDFOR»
+            private:
+                «FOR argument : method.inArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+                «FOR argument : method.outArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+            }; // class «method.name»Element
+        «ENDFOR»
+
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
-            void CVisitor::visit«attribute.name»(const «attribute.name»Element& data) {
+            void CServerVisitor::visit_«attribute.name»(const «attribute.name»Element& data) {
                 m_transport->fire«attribute.className»Changed(data.getData());
                 std::cout << "«attribute.name»" << std::endl;
             }
@@ -125,7 +212,7 @@ class FInterfacePlaybackGeneratorExtension {
         «ENDFOR»
 
         «FOR broadcast : fInterface.broadcasts»
-            void CVisitor::visit«broadcast.name»(const «broadcast.name»Element& data) {
+            void CServerVisitor::visit_«broadcast.name»(const «broadcast.name»Element& data) {
                 m_transport->fire«broadcast.name»Event(
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
@@ -168,7 +255,7 @@ class FInterfacePlaybackGeneratorExtension {
             std::vector<int64_t> m_timestamps;
             std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
 
-            std::map<std::string, std::function<void(CVisitor&, boost::property_tree::ptree pt)>> m_functions;
+            std::map<std::string, std::function<void(IVisitor&, boost::property_tree::ptree pt)>> m_functions;
             boost::property_tree::ptree m_curr_pt;
         };
 
@@ -288,7 +375,7 @@ class FInterfacePlaybackGeneratorExtension {
             {
                 initReaders();
             }
-            void provide(std::size_t ts_id, CVisitor& visitor)
+            void provide(std::size_t ts_id, IVisitor& visitor)
             {
                 if (ts_id >= m_reader.getTimestamps().size())
                 {
@@ -317,11 +404,11 @@ class FInterfacePlaybackGeneratorExtension {
         private: // fields
 
             JsonDumpReader m_reader;
-            std::map<std::string, std::function<void(CVisitor&)>> m_readers;
+            std::map<std::string, std::function<void(IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
 
         private: // methods
-            void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, CVisitor &visitor)
+            void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, IVisitor &visitor)
             {
                 auto iter = std::upper_bound(storage.begin(), storage.end(), ts_id,
                     [this](std::size_t a, std::size_t b) -> bool
@@ -339,7 +426,7 @@ class FInterfacePlaybackGeneratorExtension {
                 provideRecord(*iter, visitor);
             }
 
-            void provideRecord(std::size_t ts_id, CVisitor &visitor)
+            void provideRecord(std::size_t ts_id, IVisitor &visitor)
             {
                 m_reader.jump(ts_id);
 
@@ -362,20 +449,20 @@ class FInterfacePlaybackGeneratorExtension {
                 m_readers = {
                 «FOR attribute : fInterface.attributes»
                     «IF attribute.isObservable»
-                        {"«attribute.className»", [this](CVisitor& visitor)
+                        {"«attribute.className»", [this](IVisitor& visitor)
                             {
                                 «attribute.getTypeName(fInterface, true)» data;
                                 m_reader.readItem("«attribute.name»", data);
                                 «generateNativeInjection("READ_" + fInterface.name + attribute.name)»
 
                                 «attribute.name»Element data_elem(data);
-                                visitor.visit«attribute.name»(data_elem);
+                                visitor.visit_«attribute.name»(data_elem);
                             }
                         },
                     «ENDIF»
                 «ENDFOR»
                 «FOR broadcast : fInterface.broadcasts»
-                    {"«broadcast.className»", [this](CVisitor& visitor)
+                    {"«broadcast.className»", [this](IVisitor& visitor)
                         {
                             «broadcast.name»Element data_elem;
                             «FOR argument : broadcast.outArgs»
@@ -385,7 +472,7 @@ class FInterfacePlaybackGeneratorExtension {
 
                                 data_elem.set_«argument.name»(«argument.name»_data);
                             «ENDFOR»
-                            visitor.visit«broadcast.name»(data_elem);
+                            visitor.visit_«broadcast.name»(data_elem);
                         }
                     },
                 «ENDFOR»
@@ -417,14 +504,14 @@ class FInterfacePlaybackGeneratorExtension {
             runtime->registerService("local", argv[2], service);
             std::cout << "Successfully Registered Service!" << std::endl;
 
-            CVisitor visitor(service);
+            IVisitor* visitor = new CServerVisitor(service);
             CDataProvider provider(argv[1]);
 
             TimeService::CTimeClient time_client(provider.getTimestamps());
             while (1)
             {
                 std::size_t idx = static_cast<std::size_t>(time_client.waitForNexTimestamp());
-                provider.provide(idx, visitor);
+                provider.provide(idx, *visitor);
             }
             return 0;
         }
