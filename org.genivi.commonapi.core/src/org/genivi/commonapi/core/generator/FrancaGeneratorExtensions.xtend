@@ -352,6 +352,10 @@ class FrancaGeneratorExtensions {
         fTypeCollection.versionPathPrefix + fTypeCollection.model.directoryPath + '/' + fTypeCollection.sourceFile
     }
 
+    def getProxyClassName(FInterface fInterface) {
+        fInterface.elementName + 'Proxy'
+    }
+
     def getProxyBaseHeaderFile(FInterface fInterface) {
         fInterface.elementName + "ProxyBase.hpp"
     }

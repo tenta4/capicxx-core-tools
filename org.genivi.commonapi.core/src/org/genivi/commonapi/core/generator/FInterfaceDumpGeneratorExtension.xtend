@@ -22,7 +22,6 @@ import org.franca.core.franca.FModelElement
 class FInterfaceDumpGeneratorExtension {
     @Inject private extension FTypeGenerator
     @Inject private extension FrancaGeneratorExtensions
-    @Inject private extension FInterfaceProxyGenerator
     @Inject private extension FNativeInjections
 
     var HashSet<FStructType> usedTypes;

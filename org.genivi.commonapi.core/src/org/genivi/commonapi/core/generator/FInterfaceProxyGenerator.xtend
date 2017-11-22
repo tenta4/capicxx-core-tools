@@ -447,10 +447,6 @@ class FInterfaceProxyGenerator {
         fInterface.elementName + 'Extensions'
     }
 
-    def getProxyClassName(FInterface fInterface) {
-        fInterface.elementName + 'Proxy'
-    }
-
     def private getProxyDefaultClassName(FInterface fInterface) {
         fInterface.proxyClassName + 'Default'
     }

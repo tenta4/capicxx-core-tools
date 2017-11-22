@@ -1,5 +1,7 @@
 package org.genivi.commonapi.core.generator
 
+import org.franca.core.franca.FMethod
+
 import javax.inject.Inject
 import org.eclipse.core.resources.IResource
 import org.eclipse.xtext.generator.IFileSystemAccess
@@ -16,6 +18,26 @@ class FInterfacePlaybackGeneratorExtension {
         fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlayback(deploymentAccessor, modelid))
     }
 
+    def private generateClientMethodCall(FMethod fMethod)
+    {
+        var signature = fMethod.inArgs.map['data.get_' + elementName + '()'].join(', ')
+        if (!fMethod.inArgs.empty)
+            signature = signature + ', '
+
+        signature = signature + '_internalCallStatus'
+
+        if (fMethod.hasError)
+            signature = signature + ', _error'
+
+        if (!fMethod.outArgs.empty)
+            signature = signature + ', ' + fMethod.outArgs.map[elementName].join(', ')
+
+        //if (!fMethod.fireAndForget) {
+        //    signature += ", &_info"
+        //}
+        return 'm_transport->' + fMethod.name + '(' + signature + ')'
+    }
+
     def private extGeneratePlayback(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #include <fstream>
         #include <iostream>
@@ -25,7 +47,8 @@ class FInterfacePlaybackGeneratorExtension {
         #include "preprocessor/AdaptNamedAttrsAdt.hpp"
         #include "json_serializer/JsonSerializer.hpp"
         #include <«fInterface.serrializationHeaderPath»>
-        #include <«fInterface.getStubHeaderPath»>
+        #include <«fInterface.stubHeaderPath»>
+        #include <«fInterface.proxyHeaderPath»>
 
         // TODO: move to CDataProvider
         «generateNativeInjection(fInterface.name + "PlaybackIncludes")»
@@ -84,6 +107,7 @@ class FInterfacePlaybackGeneratorExtension {
             «FOR method : fInterface.methods»
                 virtual void visit_«method.name»(const «method.name»Element& data) override{
                     // nothing to do with methods on server side
+                    std::cout << "«method.name»" << std::endl;
                 }
             «ENDFOR»
 
@@ -94,7 +118,7 @@ class FInterfacePlaybackGeneratorExtension {
         class CClientVisitor : public IVisitor
         {
         public:
-            CClientVisitor(std::shared_ptr<«fInterface.getStubClassName»> transport)
+            CClientVisitor(std::shared_ptr<«fInterface.proxyClassName»<>> transport)
                 : m_transport(transport) {}
 
             «FOR attribute : fInterface.attributes»
@@ -117,7 +141,7 @@ class FInterfacePlaybackGeneratorExtension {
             «ENDFOR»
 
         private:
-            std::shared_ptr<«fInterface.getStubClassName»> m_transport;
+            std::shared_ptr<«fInterface.proxyClassName»<>> m_transport;
         };
 
         class IElement
@@ -183,6 +207,16 @@ class FInterfacePlaybackGeneratorExtension {
                     visitor.visit_«method.name»(*this);
                 }
 
+                «FOR argument : method.inArgs»
+                    void set_«argument.name»(const «argument.getTypeName(fInterface, true)»& data) {
+                        m_«argument.name» = data;
+                    }
+
+                    const «argument.getTypeName(fInterface, true)»& get_«argument.name»() const {
+                        return m_«argument.name»;
+                    }
+                «ENDFOR»
+
                 «FOR argument : method.outArgs»
                     void set_«argument.name»(const «argument.getTypeName(fInterface, true)»& data) {
                         m_«argument.name» = data;
@@ -220,6 +254,22 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDFOR»
                 );
                 std::cout << "«broadcast.name»" << std::endl;
+            }
+        «ENDFOR»
+
+        «FOR method : fInterface.methods»
+            void CClientVisitor::visit_«method.name»(const «method.name»Element& data) {
+                CommonAPI::CallStatus _internalCallStatus;
+                «IF method.hasError»
+                    «method.getErrorNameReference(method.eContainer)» _error;
+                «ENDIF»
+
+                «FOR argument : method.outArgs»
+                     «argument.getTypeName(method, true)» «argument.elementName»;
+                «ENDFOR»
+
+                «method.generateClientMethodCall»;
+                std::cout << "«method.name»" << std::endl;
             }
         «ENDFOR»
 
@@ -469,10 +519,33 @@ class FInterfacePlaybackGeneratorExtension {
                                 «argument.getTypeName(fInterface, true)» «argument.name»_data;
                                 m_reader.readItem("«argument.name»", «argument.name»_data);
                                 «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-
                                 data_elem.set_«argument.name»(«argument.name»_data);
+
                             «ENDFOR»
                             visitor.visit_«broadcast.name»(data_elem);
+                        }
+                    },
+                «ENDFOR»
+                «FOR method : fInterface.methods»
+                    {"«method.name»", [this](IVisitor& visitor)
+                        {
+                            «method.name»Element data_elem;
+                            «FOR argument : method.inArgs»
+                                «argument.getTypeName(fInterface, true)» «argument.name»_data;
+                                m_reader.readItem("«argument.name»", «argument.name»_data);
+                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
+                                data_elem.set_«argument.name»(«argument.name»_data);
+
+                            «ENDFOR»
+
+                            «FOR argument : method.outArgs»
+                                «argument.getTypeName(fInterface, true)» «argument.name»_data;
+                                m_reader.readItem("«argument.name»", «argument.name»_data);
+                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
+                                data_elem.set_«argument.name»(«argument.name»_data);
+
+                            «ENDFOR»
+                            visitor.visit_«method.name»(data_elem);
                         }
                     },
                 «ENDFOR»
