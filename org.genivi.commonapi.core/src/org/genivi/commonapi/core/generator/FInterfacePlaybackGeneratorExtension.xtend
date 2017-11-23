@@ -75,16 +75,16 @@ class FInterfacePlaybackGeneratorExtension {
         public:
             «FOR attribute : fInterface.attributes»
                 «IF attribute.isObservable»
-                    virtual void visit_«attribute.name»(const «attribute.name»Element&) = 0;
+                    virtual void visit_«attribute.name»(«attribute.name»Element&) = 0;
                 «ENDIF»
             «ENDFOR»
 
             «FOR broadcast : fInterface.broadcasts»
-                virtual void visit_«broadcast.name»(const «broadcast.name»Element& data) = 0;
+                virtual void visit_«broadcast.name»(«broadcast.name»Element& data) = 0;
             «ENDFOR»
 
             «FOR method : fInterface.methods»
-                virtual void visit_«method.name»(const «method.name»Element& data) = 0;
+                virtual void visit_«method.name»(«method.name»Element& data) = 0;
             «ENDFOR»
         };
 
@@ -96,18 +96,18 @@ class FInterfacePlaybackGeneratorExtension {
 
             «FOR attribute : fInterface.attributes»
                 «IF attribute.isObservable»
-                    void visit_«attribute.name»(const «attribute.name»Element&) override;
+                    void visit_«attribute.name»(«attribute.name»Element&) override;
                 «ENDIF»
             «ENDFOR»
 
             «FOR broadcast : fInterface.broadcasts»
-                void visit_«broadcast.name»(const «broadcast.name»Element& data) override;
+                void visit_«broadcast.name»(«broadcast.name»Element& data) override;
             «ENDFOR»
 
             «FOR method : fInterface.methods»
-                virtual void visit_«method.name»(const «method.name»Element& data) override{
+                virtual void visit_«method.name»(«method.name»Element& data) override{
                     // nothing to do with methods on server side
-                    std::cout << "«method.name»" << std::endl;
+                    std::cout << "Server «method.name»" << std::endl;
                 }
             «ENDFOR»
 
@@ -123,25 +123,28 @@ class FInterfacePlaybackGeneratorExtension {
 
             «FOR attribute : fInterface.attributes»
                 «IF attribute.isObservable»
-                    void visit_«attribute.name»(const «attribute.name»Element&) {
+                    void visit_«attribute.name»(«attribute.name»Element&) {
                         // nothing to do with attributes on client side
+                        std::cout << "Client «attribute.name»" << std::endl;
                     }
                 «ENDIF»
             «ENDFOR»
 
             «FOR broadcast : fInterface.broadcasts»
-                void visit_«broadcast.name»(const «broadcast.name»Element& data) override
+                void visit_«broadcast.name»(«broadcast.name»Element& data) override
                 {
                     // nothing to do with broadcasts on client side
+                    std::cout << "Client «broadcast.name»" << std::endl;
                 }
             «ENDFOR»
 
             «FOR method : fInterface.methods»
-                virtual void visit_«method.name»(const «method.name»Element& data) override;
+                virtual void visit_«method.name»(«method.name»Element& data) override;
             «ENDFOR»
 
         private:
             std::shared_ptr<«fInterface.proxyClassName»<>> m_transport;
+            «generateNativeInjection(fInterface.name + "ClientPlaybackPrivateMembers")»
         };
 
         class IElement
@@ -226,6 +229,16 @@ class FInterfacePlaybackGeneratorExtension {
                         return m_«argument.name»;
                     }
                 «ENDFOR»
+
+                «IF (method.hasError)»
+                    void set_error(«method.getErrorNameReference(method.eContainer)» error) {
+                        m_error = error;
+                    }
+
+                    «method.getErrorNameReference(method.eContainer)» get_error() const {
+                        return m_error;
+                    }
+                «ENDIF»
             private:
                 «FOR argument : method.inArgs»
                     «argument.getTypeName(fInterface, true)» m_«argument.name»;
@@ -233,43 +246,52 @@ class FInterfacePlaybackGeneratorExtension {
                 «FOR argument : method.outArgs»
                     «argument.getTypeName(fInterface, true)» m_«argument.name»;
                 «ENDFOR»
+                «IF (method.hasError)»
+                    «method.getErrorNameReference(method.eContainer)» m_error;
+                «ENDIF»
             }; // class «method.name»Element
         «ENDFOR»
 
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
-            void CServerVisitor::visit_«attribute.name»(const «attribute.name»Element& data) {
+            void CServerVisitor::visit_«attribute.name»(«attribute.name»Element& data) {
                 m_transport->fire«attribute.className»Changed(data.getData());
-                std::cout << "«attribute.name»" << std::endl;
+                std::cout << "Server «attribute.name»" << std::endl;
             }
             «ENDIF»
         «ENDFOR»
 
         «FOR broadcast : fInterface.broadcasts»
-            void CServerVisitor::visit_«broadcast.name»(const «broadcast.name»Element& data) {
+            void CServerVisitor::visit_«broadcast.name»(«broadcast.name»Element& data) {
                 m_transport->fire«broadcast.name»Event(
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
                     «IF !first»,«ENDIF»«{first = false; ""}» data.get_«argument.name»()
                 «ENDFOR»
                 );
-                std::cout << "«broadcast.name»" << std::endl;
+                std::cout << "Server «broadcast.name»" << std::endl;
             }
         «ENDFOR»
 
         «FOR method : fInterface.methods»
-            void CClientVisitor::visit_«method.name»(const «method.name»Element& data) {
+            void CClientVisitor::visit_«method.name»(«method.name»Element& data) {
+                «generateNativeInjection(fInterface.name + "_" + method.name + "_begin_ClientPlayback")»
                 CommonAPI::CallStatus _internalCallStatus;
                 «IF method.hasError»
                     «method.getErrorNameReference(method.eContainer)» _error;
                 «ENDIF»
-
                 «FOR argument : method.outArgs»
                      «argument.getTypeName(method, true)» «argument.elementName»;
                 «ENDFOR»
-
                 «method.generateClientMethodCall»;
-                std::cout << "«method.name»" << std::endl;
+                «IF method.hasError»
+                    if (_error != data.get_error())
+                    {
+                        throw std::runtime_error("Server response does not match the stored value for «method.name»() call");
+                    }
+                «ENDIF»
+                «generateNativeInjection(fInterface.name + "_" + method.name + "_end_ClientPlayback")»
+                std::cout << "Client «method.name»" << std::endl;
             }
         «ENDFOR»
 
@@ -414,8 +436,6 @@ class FInterfacePlaybackGeneratorExtension {
             return true;
         }
 
-        const static int64_t s_jump_time = 1000000;
-
         class CDataProvider
         {
         public: // methods
@@ -434,8 +454,7 @@ class FInterfacePlaybackGeneratorExtension {
                 std::size_t prev_ts = m_curr_ts;
                 m_curr_ts = ts_id;
 
-                if (m_curr_ts < prev_ts || // jump back
-                   (m_reader.getTimestamps()[m_curr_ts] - m_reader.getTimestamps()[prev_ts]) > s_jump_time) // jump forward
+                if (m_curr_ts != prev_ts + 1)
                 {
                     for (auto record: m_reader.getGropedTimestamps())
                     {
@@ -545,6 +564,12 @@ class FInterfacePlaybackGeneratorExtension {
                                 data_elem.set_«argument.name»(«argument.name»_data);
 
                             «ENDFOR»
+                            «IF (method.hasError)»
+                                «method.getErrorNameReference(method.eContainer)» error;
+                                m_reader.readItem("_error", error);
+                                data_elem.set_error(error);
+                            «ENDIF»
+
                             visitor.visit_«method.name»(data_elem);
                         }
                     },
@@ -568,17 +593,45 @@ class FInterfacePlaybackGeneratorExtension {
 
             if (argc < 3)
             {
-                std::cout << "Format: filename serviceName\n";
+                std::cout << "Format: filename serviceName [server/client(default: server)]\n";
                 return 0;
             }
 
-            std::shared_ptr<CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
-            std::shared_ptr<«fInterface.stubDefaultClassName»> service = std::make_shared<«fInterface.stubDefaultClassName»>();
-            runtime->registerService("local", argv[2], service);
-            std::cout << "Successfully Registered Service!" << std::endl;
+            bool is_server = argc > 3 && argv[3] == std::string("client") ? false : true;
+            const std::string domain = "local";
+            const std::string instance = argv[2];
+            uint32_t retry_count = 5;
 
-            IVisitor* visitor = new CServerVisitor(service);
+            std::shared_ptr<CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
             CDataProvider provider(argv[1]);
+            IVisitor* visitor;
+
+            if (is_server)
+            {
+                auto service = std::make_shared<«fInterface.stubDefaultClassName»>();
+                runtime->registerService(domain, instance, service);
+                std::cout << "Successfully Registered Service!" << std::endl;
+
+                visitor = new CServerVisitor(service);
+            }
+            else
+            {
+                auto proxy = runtime->buildProxy<«fInterface.proxyClassName»>(domain.c_str(), instance.c_str());
+                if (!proxy) {
+                    throw std::runtime_error(instance + " : failed to create ");
+                }
+
+                while (retry_count && !proxy->isAvailable()) {
+                    retry_count--;
+                    std::cout << std::endl << instance << " : try co connect " << std::endl;
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+
+                if (!retry_count) {
+                    throw std::runtime_error(instance + " : service is not available");
+                }
+                visitor = new CClientVisitor(proxy);
+            }
 
             TimeService::CTimeClient time_client(provider.getTimestamps());
             while (1)
