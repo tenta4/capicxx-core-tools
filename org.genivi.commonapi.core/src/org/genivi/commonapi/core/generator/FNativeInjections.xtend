@@ -84,7 +84,7 @@ for (auto a :shm_buffer.getKey())
     ss << (int)a;
 }
 std::cout << ss.str() << \" KEY\" << std::endl;
-data[0].setKey(shm_buffer.getKey());
+data_elem.m_data[0].setKey(shm_buffer.getKey());
         ")
 
         data.put("AugmentationEngineClientPlaybackPrivateMembers", "
@@ -102,39 +102,31 @@ bool defineObjId(Ipc::RenderingEngineTypes::ObjectId& obj_id)
         ")
 
         data.put("AugmentationEngine_addObject_end_ClientPlayback", "
-m_object_indexes[data.get_object_id()] = object_id;
+m_object_indexes[data.m_object_id] = object_id;
         ")
 
         data.put("AugmentationEngine_getObjectProperty_begin_ClientPlayback", "
-auto object_id = data.get_object_id();
-if (!defineObjId(object_id)) {
+if (!defineObjId(data.m_object_id)) {
     return;
 }
-data.set_object_id(object_id);
         ")
 
         data.put("AugmentationEngine_updateObjectProperties_begin_ClientPlayback", "
-auto object_id = data.get_object_id();
-if (!defineObjId(object_id)) {
+if (!defineObjId(data.m_object_id)) {
     return;
 }
-data.set_object_id(object_id);
         ")
 
         data.put("AugmentationEngine_sendObjectCommand_begin_ClientPlayback", "
-auto object_id = data.get_object_id();
-if (!defineObjId(object_id)) {
+if (!defineObjId(data.m_object_id)) {
     return;
 }
-data.set_object_id(object_id);
         ")
 
         data.put("AugmentationEngine_removeObject_begin_ClientPlayback", "
-auto object_id = data.get_object_id();
-if (!defineObjId(object_id)) {
+if (!defineObjId(data.m_object_id)) {
     return;
 }
-data.set_object_id(object_id);
         ")
 
         if (data.containsKey(tag))

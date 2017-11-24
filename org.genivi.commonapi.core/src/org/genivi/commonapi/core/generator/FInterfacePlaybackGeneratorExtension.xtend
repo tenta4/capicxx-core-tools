@@ -20,7 +20,7 @@ class FInterfacePlaybackGeneratorExtension {
 
     def private generateClientMethodCall(FMethod fMethod)
     {
-        var signature = fMethod.inArgs.map['data.get_' + elementName + '()'].join(', ')
+        var signature = fMethod.inArgs.map['data.m_' + elementName].join(', ')
         if (!fMethod.inArgs.empty)
             signature = signature + ', '
 
@@ -61,11 +61,9 @@ class FInterfacePlaybackGeneratorExtension {
                 class «attribute.name»Element;
             «ENDIF»
         «ENDFOR»
-
         «FOR broadcast : fInterface.broadcasts»
             class «broadcast.name»Element;
         «ENDFOR»
-
         «FOR method : fInterface.methods»
             class «method.name»Element;
         «ENDFOR»
@@ -78,11 +76,9 @@ class FInterfacePlaybackGeneratorExtension {
                     virtual void visit_«attribute.name»(«attribute.name»Element&) = 0;
                 «ENDIF»
             «ENDFOR»
-
             «FOR broadcast : fInterface.broadcasts»
                 virtual void visit_«broadcast.name»(«broadcast.name»Element& data) = 0;
             «ENDFOR»
-
             «FOR method : fInterface.methods»
                 virtual void visit_«method.name»(«method.name»Element& data) = 0;
             «ENDFOR»
@@ -107,7 +103,7 @@ class FInterfacePlaybackGeneratorExtension {
             «FOR method : fInterface.methods»
                 virtual void visit_«method.name»(«method.name»Element& data) override{
                     // nothing to do with methods on server side
-                    std::cout << "Server «method.name»" << std::endl;
+                    std::cout << "Server «method.name» (empty for now)" << std::endl;
                 }
             «ENDFOR»
 
@@ -125,7 +121,7 @@ class FInterfacePlaybackGeneratorExtension {
                 «IF attribute.isObservable»
                     void visit_«attribute.name»(«attribute.name»Element&) {
                         // nothing to do with attributes on client side
-                        std::cout << "Client «attribute.name»" << std::endl;
+                        std::cout << "Client «attribute.name» (empty for now)" << std::endl;
                     }
                 «ENDIF»
             «ENDFOR»
@@ -134,7 +130,7 @@ class FInterfacePlaybackGeneratorExtension {
                 void visit_«broadcast.name»(«broadcast.name»Element& data) override
                 {
                     // nothing to do with broadcasts on client side
-                    std::cout << "Client «broadcast.name»" << std::endl;
+                    std::cout << "Client «broadcast.name» (empty for now)" << std::endl;
                 }
             «ENDFOR»
 
@@ -155,91 +151,38 @@ class FInterfacePlaybackGeneratorExtension {
         // classes for service's attributes
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
-            class «attribute.name»Element : public IElement
+            struct «attribute.name»Element : public IElement
             {
-            public:
-                «attribute.name»Element(const «attribute.getTypeName(fInterface, true)»& data)
-                    : m_data(data){}
-
                 void visit(IVisitor& visitor) override {
                     visitor.visit_«attribute.name»(*this);
                 }
-
-                const «attribute.getTypeName(fInterface, true)»& getData() const {
-                    return m_data;
-                }
-
-            private:
                 «attribute.getTypeName(fInterface, true)» m_data;
             }; // class «attribute.name»Element
 
             «ENDIF»
         «ENDFOR»
-
         // classes for service's broadcasts
         «FOR broadcast : fInterface.broadcasts»
-            class «broadcast.name»Element : public IElement
+            struct «broadcast.name»Element : public IElement
             {
-            public:
                 void visit(IVisitor& visitor) override {
                     visitor.visit_«broadcast.name»(*this);
                 }
 
                 «FOR argument : broadcast.outArgs»
-                    void set_«argument.name»(const «argument.getTypeName(fInterface, true)»& data) {
-                        m_«argument.name» = data;
-                    }
-
-                    const «argument.getTypeName(fInterface, true)»& get_«argument.name»() const {
-                        return m_«argument.name»;
-                    }
-                «ENDFOR»
-            private:
-                «FOR argument : broadcast.outArgs»
                     «argument.getTypeName(fInterface, true)» m_«argument.name»;
                 «ENDFOR»
             }; // class «broadcast.name»Element
-        «ENDFOR»
 
+        «ENDFOR»
         // classes for service's methods
         «FOR method : fInterface.methods»
-            class «method.name»Element : public IElement
+            struct «method.name»Element : public IElement
             {
-            public:
                 void visit(IVisitor& visitor) override {
                     visitor.visit_«method.name»(*this);
                 }
 
-                «FOR argument : method.inArgs»
-                    void set_«argument.name»(const «argument.getTypeName(fInterface, true)»& data) {
-                        m_«argument.name» = data;
-                    }
-
-                    const «argument.getTypeName(fInterface, true)»& get_«argument.name»() const {
-                        return m_«argument.name»;
-                    }
-                «ENDFOR»
-
-                «FOR argument : method.outArgs»
-                    void set_«argument.name»(const «argument.getTypeName(fInterface, true)»& data) {
-                        m_«argument.name» = data;
-                    }
-
-                    const «argument.getTypeName(fInterface, true)»& get_«argument.name»() const {
-                        return m_«argument.name»;
-                    }
-                «ENDFOR»
-
-                «IF (method.hasError)»
-                    void set_error(«method.getErrorNameReference(method.eContainer)» error) {
-                        m_error = error;
-                    }
-
-                    «method.getErrorNameReference(method.eContainer)» get_error() const {
-                        return m_error;
-                    }
-                «ENDIF»
-            private:
                 «FOR argument : method.inArgs»
                     «argument.getTypeName(fInterface, true)» m_«argument.name»;
                 «ENDFOR»
@@ -250,12 +193,13 @@ class FInterfacePlaybackGeneratorExtension {
                     «method.getErrorNameReference(method.eContainer)» m_error;
                 «ENDIF»
             }; // class «method.name»Element
+
         «ENDFOR»
 
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
             void CServerVisitor::visit_«attribute.name»(«attribute.name»Element& data) {
-                m_transport->fire«attribute.className»Changed(data.getData());
+                m_transport->fire«attribute.className»Changed(data.m_data);
                 std::cout << "Server «attribute.name»" << std::endl;
             }
             «ENDIF»
@@ -266,7 +210,7 @@ class FInterfacePlaybackGeneratorExtension {
                 m_transport->fire«broadcast.name»Event(
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
-                    «IF !first»,«ENDIF»«{first = false; ""}» data.get_«argument.name»()
+                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_«argument.name»
                 «ENDFOR»
                 );
                 std::cout << "Server «broadcast.name»" << std::endl;
@@ -285,7 +229,7 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDFOR»
                 «method.generateClientMethodCall»;
                 «IF method.hasError»
-                    if (_error != data.get_error())
+                    if (_error != data.m_error)
                     {
                         throw std::runtime_error("Server response does not match the stored value for «method.name»() call");
                     }
@@ -520,11 +464,10 @@ class FInterfacePlaybackGeneratorExtension {
                     «IF attribute.isObservable»
                         {"«attribute.className»", [this](IVisitor& visitor)
                             {
-                                «attribute.getTypeName(fInterface, true)» data;
-                                m_reader.readItem("«attribute.name»", data);
+                                «attribute.name»Element data_elem;
+                                m_reader.readItem("«attribute.name»", data_elem.m_data);
                                 «generateNativeInjection("READ_" + fInterface.name + attribute.name)»
 
-                                «attribute.name»Element data_elem(data);
                                 visitor.visit_«attribute.name»(data_elem);
                             }
                         },
@@ -535,10 +478,8 @@ class FInterfacePlaybackGeneratorExtension {
                         {
                             «broadcast.name»Element data_elem;
                             «FOR argument : broadcast.outArgs»
-                                «argument.getTypeName(fInterface, true)» «argument.name»_data;
-                                m_reader.readItem("«argument.name»", «argument.name»_data);
+                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
                                 «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-                                data_elem.set_«argument.name»(«argument.name»_data);
 
                             «ENDFOR»
                             visitor.visit_«broadcast.name»(data_elem);
@@ -550,26 +491,18 @@ class FInterfacePlaybackGeneratorExtension {
                         {
                             «method.name»Element data_elem;
                             «FOR argument : method.inArgs»
-                                «argument.getTypeName(fInterface, true)» «argument.name»_data;
-                                m_reader.readItem("«argument.name»", «argument.name»_data);
+                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
                                 «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-                                data_elem.set_«argument.name»(«argument.name»_data);
 
                             «ENDFOR»
-
                             «FOR argument : method.outArgs»
-                                «argument.getTypeName(fInterface, true)» «argument.name»_data;
-                                m_reader.readItem("«argument.name»", «argument.name»_data);
+                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
                                 «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-                                data_elem.set_«argument.name»(«argument.name»_data);
 
                             «ENDFOR»
                             «IF (method.hasError)»
-                                «method.getErrorNameReference(method.eContainer)» error;
-                                m_reader.readItem("_error", error);
-                                data_elem.set_error(error);
+                                m_reader.readItem("_error", data_elem.m_error);
                             «ENDIF»
-
                             visitor.visit_«method.name»(data_elem);
                         }
                     },
