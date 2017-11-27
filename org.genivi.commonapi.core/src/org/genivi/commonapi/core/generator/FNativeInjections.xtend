@@ -84,7 +84,49 @@ for (auto a :shm_buffer.getKey())
     ss << (int)a;
 }
 std::cout << ss.str() << \" KEY\" << std::endl;
-data[0].setKey(shm_buffer.getKey());
+data_elem.m_data[0].setKey(shm_buffer.getKey());
+        ")
+
+        data.put("AugmentationEngineClientPlaybackPrivateMembers", "
+std::map<uint64_t, uint64_t> m_object_indexes;
+bool defineObjId(Ipc::RenderingEngineTypes::ObjectId& obj_id)
+{
+    auto item = m_object_indexes.find(obj_id);
+    if (item == m_object_indexes.end()) {
+        std::cout << \"Warning: request to use not existing object \" << obj_id << std::endl;
+        return false;
+    }
+    obj_id = item->second;
+    return true;
+}
+        ")
+
+        data.put("AugmentationEngine_addObject_end_ClientPlayback", "
+m_object_indexes[data.m_object_id] = object_id;
+        ")
+
+        data.put("AugmentationEngine_getObjectProperty_begin_ClientPlayback", "
+if (!defineObjId(data.m_object_id)) {
+    return;
+}
+        ")
+
+        data.put("AugmentationEngine_updateObjectProperties_begin_ClientPlayback", "
+if (!defineObjId(data.m_object_id)) {
+    return;
+}
+        ")
+
+        data.put("AugmentationEngine_sendObjectCommand_begin_ClientPlayback", "
+if (!defineObjId(data.m_object_id)) {
+    return;
+}
+        ")
+
+        data.put("AugmentationEngine_removeObject_begin_ClientPlayback", "
+if (!defineObjId(data.m_object_id)) {
+    return;
+}
         ")
 
         if (data.containsKey(tag))

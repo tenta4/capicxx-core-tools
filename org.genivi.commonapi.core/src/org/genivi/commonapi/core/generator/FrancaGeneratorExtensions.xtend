@@ -352,6 +352,10 @@ class FrancaGeneratorExtensions {
         fTypeCollection.versionPathPrefix + fTypeCollection.model.directoryPath + '/' + fTypeCollection.sourceFile
     }
 
+    def getProxyClassName(FInterface fInterface) {
+        fInterface.elementName + 'Proxy'
+    }
+
     def getProxyBaseHeaderFile(FInterface fInterface) {
         fInterface.elementName + "ProxyBase.hpp"
     }
@@ -1074,7 +1078,7 @@ class FrancaGeneratorExtensions {
         {
             signature = signature + ', const ' + fMethod.getErrorNameReference(fMethod.eContainer) + '&'
             if (argsPresent)
-                signature = signature + ' res';
+                signature = signature + ' error';
         }
         if (!fMethod.outArgs.empty)
         {
@@ -1091,7 +1095,7 @@ class FrancaGeneratorExtensions {
         var signature = 'cs'
 
         if (fMethod.hasError)
-            signature = signature + ', res'
+            signature = signature + ', error'
 
         if (!fMethod.outArgs.empty)
             signature = signature + ', ' + fMethod.outArgs.map[elementName].join(', ')

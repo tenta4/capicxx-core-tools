@@ -22,7 +22,6 @@ import org.franca.core.franca.FModelElement
 class FInterfaceDumpGeneratorExtension {
     @Inject private extension FTypeGenerator
     @Inject private extension FrancaGeneratorExtensions
-    @Inject private extension FInterfaceProxyGenerator
     @Inject private extension FNativeInjections
 
     var HashSet<FStructType> usedTypes;
@@ -200,6 +199,11 @@ class FInterfaceDumpGeneratorExtension {
             «FOR argument : methods.outArgs»
                 «extGenerateSerrializationMain(argument.type, fInterface)»
             «ENDFOR»
+
+            //TODO: get rid of enum duplicates (just for beauty)
+            «IF methods.hasError»
+                «extGenerateTypeSerrialization(methods.errorEnum, fInterface)»
+            «ENDIF»
         «ENDFOR»
 
         #endif // «fInterface.defineName»_SERRIALIZATION_HPP_
@@ -397,6 +401,9 @@ class FInterfaceDumpGeneratorExtension {
                 «FOR argument : method.outArgs»
                     m_writer.adjustQuery(_«argument.name», "«argument.name»");
                 «ENDFOR»
+                «IF (method.hasError)»
+                    m_writer.adjustQuery(_error, "_error");
+                «ENDIF»
             }
 
             «ENDIF»
@@ -417,6 +424,9 @@ class FInterfaceDumpGeneratorExtension {
                         «FOR arg : method.outArgs»
                             m_writer.adjustQuery(«arg.name», "«arg.name»");
                         «ENDFOR»
+                        «IF (method.hasError)»
+                            m_writer.adjustQuery(error, "_error");
+                        «ENDIF»
                     };
 
                     return «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»Async(«method.generateAsyncMethodArguments»);
