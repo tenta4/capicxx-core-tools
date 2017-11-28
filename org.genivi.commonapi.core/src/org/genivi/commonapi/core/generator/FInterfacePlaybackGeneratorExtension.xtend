@@ -33,7 +33,7 @@ class FInterfacePlaybackGeneratorExtension {
             signature = signature + ', _error'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', ' + fMethod.outArgs.map[elementName].join(', ')
+            signature = signature + ', ' + fMethod.outArgs.map['data.m_' + elementName].join(', ')
 
         //if (!fMethod.fireAndForget) {
         //    signature += ", &_info"
@@ -142,7 +142,6 @@ class FInterfacePlaybackGeneratorExtension {
 
         private:
             std::shared_ptr<«fInterface.proxyClassName»<>> m_transport;
-            «generateNativeInjection(fInterface.name + "_PLAYBACK_PRIVATE_MEMBERS")»
         };
 
         class IElement
@@ -221,14 +220,10 @@ class FInterfacePlaybackGeneratorExtension {
 
         «FOR method : fInterface.methods»
             void CClientVisitor::visit_«method.name»(«method.name»Element& data) {
-                «generateNativeInjection(fInterface.name + "_" + method.name + "_BEFORE_SEND")»
                 CommonAPI::CallStatus _internalCallStatus;
                 «IF method.hasError»
                     «method.getErrorNameReference(method.eContainer)» _error;
                 «ENDIF»
-                «FOR argument : method.outArgs»
-                     «argument.getTypeName(method, true)» «argument.elementName»;
-                «ENDFOR»
                 «method.generateClientMethodCall»;
                 «IF method.hasError»
                     if (_error != data.m_error)
@@ -236,7 +231,6 @@ class FInterfacePlaybackGeneratorExtension {
                         std::cout << "Warning : Server response does not match the stored value for «method.name»() call";
                     }
                 «ENDIF»
-                «generateNativeInjection(fInterface.name + "_" + method.name + "_AFTER_SEND")»
                 std::cout << "Client «method.name»" << std::endl;
             }
         «ENDFOR»
@@ -282,7 +276,7 @@ class FInterfacePlaybackGeneratorExtension {
             JsonDumpReader m_reader;
             std::map<std::string, std::function<void(IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
-
+            «generateNativeInjection(fInterface.name + "_PLAYBACK_READER_PRIVATE_MEMBERS")»
         private: // methods
             void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, IVisitor &visitor)
             {
@@ -355,18 +349,16 @@ class FInterfacePlaybackGeneratorExtension {
                             «method.name»Element data_elem;
                             «FOR argument : method.inArgs»
                                 m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection("READ_" + fInterface.name + '_' + argument.name + '_READ')»
-
                             «ENDFOR»
                             «FOR argument : method.outArgs»
                                 m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-
                             «ENDFOR»
                             «IF (method.hasError)»
                                 m_reader.readItem("_error", data_elem.m_error);
                             «ENDIF»
+                            «generateNativeInjection(fInterface.name + '_' + method.name + '_READ')»
                             visitor.visit_«method.name»(data_elem);
+                            «generateNativeInjection(fInterface.name + '_' + method.name + '_AFTER_SEND')»
                         }
                     },
                 «ENDFOR»

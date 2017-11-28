@@ -56,7 +56,7 @@ class FNativeInjections {
 
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_INCLUDES', getTagValue('PLAYBACK_INCLUDES', element.comment));
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_CONSTRUCTOR', getTagValue('PLAYBACK_CONSTRUCTOR', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_PRIVATE_MEMBERS', getTagValue('PLAYBACK_PRIVATE_MEMBERS', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_PRIVATE_MEMBERS', getTagValue('PLAYBACK_READER_PRIVATE_MEMBERS', element.comment));
                 }
             }
 
@@ -83,7 +83,7 @@ class FNativeInjections {
                     {
                         if (element.type == FAnnotationType::EXPERIMENTAL)
                         {
-                            native_injections.put(fInterface.name + '_' + method.name + '_' + 'BEFORE_SEND', getTagValue('BEFORE_SEND', element.comment));
+                            native_injections.put(fInterface.name + '_' + method.name + '_' + 'READ', getTagValue('READ', element.comment));
                             native_injections.put(fInterface.name + '_' + method.name + '_' + 'AFTER_SEND', getTagValue('AFTER_SEND', element.comment));
                         }
                     }
