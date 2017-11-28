@@ -44,10 +44,8 @@ class FNativeInjections {
 
     def fillInjections(FInterface fInterface)
     {
-        if (fInterface.comment != null)
-        {
-            for (element : fInterface.comment.elements)
-            {
+        if (fInterface.comment != null) {
+            for (element : fInterface.comment.elements) {
                 if (element.type == FAnnotationType::EXPERIMENTAL)
                 {
                     native_injections.put(fInterface.name + '_' + 'DUMPER_INCLUDES', getTagValue('DUMPER_INCLUDES', element.comment));
@@ -62,12 +60,9 @@ class FNativeInjections {
 
             for (attribute : fInterface.attributes)
             {
-                if (attribute.comment != null)
-                {
-                    for (element : attribute.comment.elements)
-                    {
-                        if (element.type == FAnnotationType::EXPERIMENTAL)
-                        {
+                if (attribute.comment != null) {
+                    for (element : attribute.comment.elements) {
+                        if (element.type == FAnnotationType::EXPERIMENTAL) {
                             native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'READ', getTagValue('READ', element.comment));
                             native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'WRITE', getTagValue('WRITE', element.comment));
                         }
@@ -77,19 +72,16 @@ class FNativeInjections {
 
             for (method : fInterface.methods)
             {
-                if (method.comment != null)
-                {
-                    for (element : method.comment.elements)
-                    {
-                        if (element.type == FAnnotationType::EXPERIMENTAL)
-                        {
+                if (method.comment != null) {
+                    for (element : method.comment.elements) {
+                        if (element.type == FAnnotationType::EXPERIMENTAL) {
                             native_injections.put(fInterface.name + '_' + method.name + '_' + 'READ', getTagValue('READ', element.comment));
                             native_injections.put(fInterface.name + '_' + method.name + '_' + 'AFTER_SEND', getTagValue('AFTER_SEND', element.comment));
                         }
                     }
                 }
-            }
-        }
+            } // endfor
+        } // endof fillInjections()
     }
 
 }
