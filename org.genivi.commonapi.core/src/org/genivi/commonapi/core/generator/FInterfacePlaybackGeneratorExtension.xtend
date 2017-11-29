@@ -244,6 +244,7 @@ class FInterfacePlaybackGeneratorExtension {
                 : m_reader(file_name)
                 , m_curr_ts(std::numeric_limits<std::size_t>::max())
             {
+                «generateNativeInjection(fInterface.name + "_PLAYBACK_READER_CONSTRUCTOR")»
                 initReaders();
             }
             void provide(std::size_t ts_id, IVisitor& visitor)
@@ -314,8 +315,6 @@ class FInterfacePlaybackGeneratorExtension {
 
             void initReaders()
             {
-                «generateNativeInjection(fInterface.name + "_PLAYBACK_CONSTRUCTOR")»
-
                 m_readers = {
                 «FOR attribute : fInterface.attributes»
                     «IF attribute.isObservable»

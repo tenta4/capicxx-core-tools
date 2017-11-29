@@ -335,14 +335,13 @@ class FInterfaceDumpGeneratorExtension {
                     typedef typename «fInterface.proxyClassName»<_AttributeExtensions...>::«method.asyncCallbackClassName» «method.asyncCallbackClassName»;
                 «ENDIF»
             «ENDFOR»
-
+            «generateNativeInjection(fInterface.name + "_DUMPER_PRIVATE_MEMBERS")»
         public:
             «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
                 , m_writer("«fInterface.name»_dump.json")
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
-                «generateNativeInjection(fInterface.name + "_DUMPER_CONSTRUCTOR")»
 
                 «FOR fAttribute : fInterface.attributes»
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().

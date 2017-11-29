@@ -35,11 +35,13 @@ class FNativeInjections {
         val String closeTag = '</'+tag+'>'
         val open = data.indexOf(openTag);
         val close = data.indexOf(closeTag);
+
+        val String comment = '// Native injection ' + tag + ':'
         if (open >= 0 && close > open)
         {
-            return data.substring(open + openTag.length(), close).replaceAll('<star/>', '*')
+            return comment + data.substring(open + openTag.length(), close).replaceAll('<star/>', '*')
         }
-        return ''
+        return comment + ' empty'
     }
 
     def fillInjections(FInterface fInterface)
@@ -49,11 +51,11 @@ class FNativeInjections {
                 if (element.type == FAnnotationType::EXPERIMENTAL)
                 {
                     native_injections.put(fInterface.name + '_' + 'DUMPER_INCLUDES', getTagValue('DUMPER_INCLUDES', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'DUMPER_CONSTRUCTOR', getTagValue('DUMPER_CONSTRUCTOR', element.comment));
+                    //native_injections.put(fInterface.name + '_' + 'DUMPER_CONSTRUCTOR', getTagValue('DUMPER_CONSTRUCTOR', element.comment));
                     native_injections.put(fInterface.name + '_' + 'DUMPER_PRIVATE_MEMBERS', getTagValue('DUMPER_PRIVATE_MEMBERS', element.comment));
 
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_INCLUDES', getTagValue('PLAYBACK_INCLUDES', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_CONSTRUCTOR', getTagValue('PLAYBACK_CONSTRUCTOR', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_CONSTRUCTOR', getTagValue('PLAYBACK_READER_CONSTRUCTOR', element.comment));
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_PRIVATE_MEMBERS', getTagValue('PLAYBACK_READER_PRIVATE_MEMBERS', element.comment));
                 }
             }
