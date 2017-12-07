@@ -448,12 +448,20 @@ class FrancaGeneratorExtensions {
         fInterface.elementName + "Playback.hpp"
     }
 
+    def getPlaybackMainFile(FInterface fInterface) {
+        fInterface.elementName + "PlaybackMain.cpp"
+    }
+
     def getSerrializationHeaderPath(FInterface fInterface) {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.serrializationFile
     }
 
     def getPlaybackSourcePath(FInterface fInterface) {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.playbackSourceFile
+    }
+
+    def getPlaybackMainPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.playbackMainFile
     }
 
     def generateSelectiveBroadcastStubIncludes(FInterface fInterface, Collection<String> generatedHeaders,

@@ -17,8 +17,9 @@ class FInterfacePlaybackGeneratorExtension {
     def generatePlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
         fInterface.fillInjections()
-        fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlayback(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.dumpReaderHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDumpReader(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlayback(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.playbackMainPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlaybackMain(deploymentAccessor, modelid))
     }
 
     def private generateClientMethodCall(FMethod fMethod)
@@ -368,6 +369,10 @@ class FInterfacePlaybackGeneratorExtension {
         «fInterface.model.generateNamespaceEndDeclaration»
         «fInterface.generateVersionNamespaceEnd»
 
+    '''
+
+    def private extGeneratePlaybackMain(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+
         #include <CommonAPI/CommonAPI.hpp>
         #include <timeService/CTimeClient.hpp>
         #include <«fInterface.stubDefaultHeaderPath»>
@@ -428,6 +433,5 @@ class FInterfacePlaybackGeneratorExtension {
             }
             return 0;
         }
-
     '''
 }

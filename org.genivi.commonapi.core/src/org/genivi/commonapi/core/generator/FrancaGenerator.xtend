@@ -40,6 +40,7 @@ class FrancaGenerator implements IGenerator {
     @Inject private extension FInterfaceStubGenerator
     @Inject private extension FInterfaceDumpGeneratorExtension
     @Inject private extension FInterfacePlaybackGeneratorExtension
+    @Inject private extension FCMakeDumperPlaybackGenerator
     @Inject private extension FrancaGeneratorExtensions
 
     @Inject private FrancaPersistenceManager francaPersistenceManager
@@ -263,6 +264,7 @@ class FrancaGenerator implements IGenerator {
                 it.generateProxy(_fileSystemAccess, deploymentAccessor, _res)
                 it.generateDumper(_fileSystemAccess, deploymentAccessor, _res)
                 it.generatePlayback(_fileSystemAccess, deploymentAccessor, _res)
+                it.generateCMakeDumperPlayback(_fileSystemAccess, deploymentAccessor, _res)
             }
             if (FPreferences::instance.getPreference(PreferenceConstants::P_GENERATE_STUB, "true").equals("true")) {
                 it.generateStub(_fileSystemAccess, deploymentAccessor, _res)
