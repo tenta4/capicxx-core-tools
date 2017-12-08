@@ -35,6 +35,7 @@ class FInterfaceDumpGeneratorExtension {
         fileSystemAccess.generateFile(fInterface.serrializationHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateSerrialiation(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWrapperHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWrapper(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWriterHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWriter(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.dumperMainPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDumperMain(deploymentAccessor, modelid))
     }
 
     def private getProxyDumpWrapperClassName(FInterface fInterface) {
@@ -438,4 +439,75 @@ class FInterfaceDumpGeneratorExtension {
         «fInterface.generateVersionNamespaceEnd»
     '''
 
+    def private generateDumperMain(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+        #include <csignal>
+        #include <iostream>
+        #include <unistd.h>
+
+        #include <CommonAPI/CommonAPI.hpp>
+
+        // include serrialization library headers before proxy include
+        #include "json_serializer/JsonSerializer.hpp"
+        #include "preprocessor/AdaptNamedAttrsAdt.hpp"
+
+        #include <v0/Ipc/SensorsSourceProxyDumpWrapper.hpp>
+
+        template<template<typename ...> class T>
+        class TCommonWrapper
+        {
+        public:
+        TCommonWrapper(const std::string& domain, const std::string& instance, uint32_t retry_count)
+        {
+            std::shared_ptr <CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
+            m_proxy = runtime->buildProxy<T>(domain.c_str(), instance.c_str());
+            if (!m_proxy)
+            {
+                throw std::runtime_error(instance + " : failed to create ");
+            }
+
+            while (retry_count && !m_proxy->isAvailable())
+            {
+                retry_count--;
+                std::cout << std::endl << instance << " : try co connect " << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+
+            if (!retry_count) {
+                throw std::runtime_error(instance + " : service is not available");
+            }
+        }
+        protected:
+            std::shared_ptr<T<>> m_proxy;
+        };
+
+        «fInterface.generateNamespaceUsage»
+
+        std::atomic<bool> done(false);
+        void signalHandler(int signum) {
+            done = true;
+        }
+
+        int main(int argc, char** argv)
+        {
+            if (argc < 2) {
+                std::cout << "Input service name please" << std::endl;
+                return 0;
+            }
+
+            std::string service_name = argv[1];
+            std::cout << "Service name: " << service_name << std::endl;
+
+            signal(SIGINT, signalHandler);
+
+            typedef TCommonWrapper<v0::Ipc::SensorsSourceProxyDumpWrapper> ProxyDumpWraper;
+            std::shared_ptr<ProxyDumpWraper> perception_proxy = std::make_shared<ProxyDumpWraper>(
+                        "local", service_name, 5);
+
+            while (!done) {
+                sleep(1);
+            }
+
+            return 0;
+        }
+    '''
 }

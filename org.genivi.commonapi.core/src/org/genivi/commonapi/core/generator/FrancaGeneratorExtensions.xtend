@@ -452,6 +452,10 @@ class FrancaGeneratorExtensions {
         fInterface.elementName + "PlaybackMain.cpp"
     }
 
+    def getDumperMainFile(FInterface fInterface) {
+        fInterface.elementName + "DumperMain.cpp"
+    }
+
     def getSerrializationHeaderPath(FInterface fInterface) {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.serrializationFile
     }
@@ -462,6 +466,10 @@ class FrancaGeneratorExtensions {
 
     def getPlaybackMainPath(FInterface fInterface) {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.playbackMainFile
+    }
+
+    def getDumperMainPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.dumperMainFile
     }
 
     def generateSelectiveBroadcastStubIncludes(FInterface fInterface, Collection<String> generatedHeaders,

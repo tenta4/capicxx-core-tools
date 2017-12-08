@@ -20,8 +20,18 @@ class FCMakeDumperPlaybackGenerator {
         set(DUMPER_APP_NAME _gen_«fInterface.name»_dumper)
         set(PLAYBACK_APP_NAME _gen_«fInterface.name»_playback)
 
+        set(PLAYBACK_SOURCES
+            «fInterface.playbackMainFile»
+        )
+
         set(DUMPER_SOURCES
-            «fInterface.getPlaybackMainFile»
+            «fInterface.dumperMainFile»
+        )
+
+        add_executable(${DUMPER_APP_NAME} ${DUMPER_SOURCES})
+
+        target_link_libraries(${DUMPER_APP_NAME}
+            PRIVATE json_serializer
         )
     '''
 }
