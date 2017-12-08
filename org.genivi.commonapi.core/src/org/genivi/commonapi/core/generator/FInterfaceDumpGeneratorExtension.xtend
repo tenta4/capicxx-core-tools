@@ -323,7 +323,7 @@ class FInterfaceDumpGeneratorExtension {
         #include <«fInterface.proxyHeaderPath»>
         #include <«fInterface.proxyDumpWriterHeaderPath»>
 
-        «generateNativeInjection(fInterface.name + "_DUMPER_INCLUDES")»
+        «generateNativeInjection(fInterface.name, 'DUMPER_INCLUDES', '//')»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -336,7 +336,7 @@ class FInterfaceDumpGeneratorExtension {
                     typedef typename «fInterface.proxyClassName»<_AttributeExtensions...>::«method.asyncCallbackClassName» «method.asyncCallbackClassName»;
                 «ENDIF»
             «ENDFOR»
-            «generateNativeInjection(fInterface.name + "_DUMPER_PRIVATE_MEMBERS")»
+            «generateNativeInjection(fInterface.name, 'DUMPER_PRIVATE_MEMBERS', '//')»
         public:
             «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
@@ -348,7 +348,7 @@ class FInterfaceDumpGeneratorExtension {
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
-                            «generateNativeInjection(fInterface.name + '_' + fAttribute.name + '_WRITE')»
+                            «generateNativeInjection(fInterface.name + '_' + fAttribute.name, 'WRITE', '//')»
 
                             // TODO: add mutex?
                             m_writer.beginQuery("«fAttribute.className»");
@@ -365,7 +365,7 @@ class FInterfaceDumpGeneratorExtension {
                             // TODO: add mutex?
                             m_writer.beginQuery("«broadcast.className»");
                             «FOR argument : broadcast.outArgs»
-                                «generateNativeInjection(fInterface.name + '_' + argument.name + '_WRITE')»
+                                «generateNativeInjection(fInterface.name + '_' + argument.name, 'WRITE', '//')»
                                 m_writer.adjustQuery(«argument.name», "«argument.name»");
                             «ENDFOR»
                         });

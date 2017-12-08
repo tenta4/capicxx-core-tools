@@ -54,7 +54,7 @@ class FInterfacePlaybackGeneratorExtension {
         #include <«fInterface.stubHeaderPath»>
         #include <«fInterface.proxyHeaderPath»>
 
-        «generateNativeInjection(fInterface.name + "_PLAYBACK_INCLUDES")»
+        «generateNativeInjection(fInterface.name, 'PLAYBACK_INCLUDES', '//')»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -245,7 +245,7 @@ class FInterfacePlaybackGeneratorExtension {
                 : m_reader(file_name)
                 , m_curr_ts(std::numeric_limits<std::size_t>::max())
             {
-                «generateNativeInjection(fInterface.name + "_PLAYBACK_READER_CONSTRUCTOR")»
+                «generateNativeInjection(fInterface.name, 'PLAYBACK_READER_CONSTRUCTOR', '//')»
                 initReaders();
             }
             void provide(std::size_t ts_id, IVisitor& visitor)
@@ -278,7 +278,7 @@ class FInterfacePlaybackGeneratorExtension {
             JsonDumpReader m_reader;
             std::map<std::string, std::function<void(IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
-            «generateNativeInjection(fInterface.name + "_PLAYBACK_READER_PRIVATE_MEMBERS")»
+            «generateNativeInjection(fInterface.name, 'PLAYBACK_READER_PRIVATE_MEMBERS', '//')»
         private: // methods
             void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, IVisitor &visitor)
             {
@@ -323,7 +323,7 @@ class FInterfacePlaybackGeneratorExtension {
                             {
                                 «attribute.name»Element data_elem;
                                 m_reader.readItem("«attribute.name»", data_elem.m_data);
-                                «generateNativeInjection(fInterface.name + '_' + attribute.name + '_READ')»
+                                «generateNativeInjection(fInterface.name + '_' + attribute.name, 'READ', '//')»
 
                                 visitor.visit_«attribute.name»(data_elem);
                             }
@@ -336,7 +336,7 @@ class FInterfacePlaybackGeneratorExtension {
                             «broadcast.name»Element data_elem;
                             «FOR argument : broadcast.outArgs»
                                 m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection(fInterface.name + '_' + argument.name + '_READ')»
+                                «generateNativeInjection(fInterface.name + '_' + argument.name, 'READ', '//')»
 
                             «ENDFOR»
                             visitor.visit_«broadcast.name»(data_elem);
@@ -356,9 +356,9 @@ class FInterfacePlaybackGeneratorExtension {
                             «IF (method.hasError)»
                                 m_reader.readItem("_error", data_elem.m_error);
                             «ENDIF»
-                            «generateNativeInjection(fInterface.name + '_' + method.name + '_READ')»
+                            «generateNativeInjection(fInterface.name + '_' + method.name, 'READ', '//')»
                             visitor.visit_«method.name»(data_elem);
-                            «generateNativeInjection(fInterface.name + '_' + method.name + '_AFTER_SEND')»
+                            «generateNativeInjection(fInterface.name + '_' + method.name, 'AFTER_SEND', '//')»
                         }
                     },
                 «ENDFOR»

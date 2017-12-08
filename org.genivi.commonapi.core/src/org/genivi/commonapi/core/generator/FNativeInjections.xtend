@@ -10,13 +10,15 @@ class FNativeInjections {
 
     val Map<String, String> native_injections = new HashMap<String, String>()
 
-    def String generateNativeInjection(String tag)
+    def String generateNativeInjection(String path, String tag, String comment_sym)
     {
-        if (native_injections.containsKey(tag))
+        val String comment = comment_sym + ' Native injection ' + tag + ' : '
+        val String full_path = path + '_' + tag
+        if (native_injections.containsKey(full_path))
         {
-            return native_injections.get(tag)
+            return comment + native_injections.get(full_path)
         }
-        return ''
+        return comment + 'empty'
     }
 
     def String printInjections()
@@ -36,12 +38,11 @@ class FNativeInjections {
         val open = data.indexOf(openTag);
         val close = data.indexOf(closeTag);
 
-        val String comment = '// Native injection ' + tag + ':'
         if (open >= 0 && close > open)
         {
-            return comment + data.substring(open + openTag.length(), close).replaceAll('<star/>', '*')
+            return data.substring(open + openTag.length(), close).replaceAll('<star/>', '*')
         }
-        return comment + ' empty'
+        return ''
     }
 
     def fillInjections(FInterface fInterface)
@@ -59,31 +60,31 @@ class FNativeInjections {
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_PRIVATE_MEMBERS', getTagValue('PLAYBACK_READER_PRIVATE_MEMBERS', element.comment));
                 }
             }
+        }
 
-            for (attribute : fInterface.attributes)
-            {
-                if (attribute.comment != null) {
-                    for (element : attribute.comment.elements) {
-                        if (element.type == FAnnotationType::EXPERIMENTAL) {
-                            native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'READ', getTagValue('READ', element.comment));
-                            native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'WRITE', getTagValue('WRITE', element.comment));
-                        }
+        for (attribute : fInterface.attributes)
+        {
+            if (attribute.comment != null) {
+                for (element : attribute.comment.elements) {
+                    if (element.type == FAnnotationType::EXPERIMENTAL) {
+                        native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'READ', getTagValue('READ', element.comment));
+                        native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'WRITE', getTagValue('WRITE', element.comment));
                     }
                 }
             }
+        }
 
-            for (method : fInterface.methods)
-            {
-                if (method.comment != null) {
-                    for (element : method.comment.elements) {
-                        if (element.type == FAnnotationType::EXPERIMENTAL) {
-                            native_injections.put(fInterface.name + '_' + method.name + '_' + 'READ', getTagValue('READ', element.comment));
-                            native_injections.put(fInterface.name + '_' + method.name + '_' + 'AFTER_SEND', getTagValue('AFTER_SEND', element.comment));
-                        }
+        for (method : fInterface.methods)
+        {
+            if (method.comment != null) {
+                for (element : method.comment.elements) {
+                    if (element.type == FAnnotationType::EXPERIMENTAL) {
+                        native_injections.put(fInterface.name + '_' + method.name + '_' + 'READ', getTagValue('READ', element.comment));
+                        native_injections.put(fInterface.name + '_' + method.name + '_' + 'AFTER_SEND', getTagValue('AFTER_SEND', element.comment));
                     }
                 }
-            } // endfor
-        } // endof fillInjections()
+            }
+        }
     }
 
 }
