@@ -9,10 +9,12 @@ import org.genivi.commonapi.core.preferences.PreferenceConstants
 import org.genivi.commonapi.core.preferences.FPreferences
 
 class FCMakeDumperPlaybackGenerator {
+    @Inject private extension FNativeInjections
     @Inject private extension FrancaGeneratorExtensions
 
     def generateCMakeDumperPlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid)
     {
+        fInterface.fillInjections()
         fileSystemAccess.generateFile('CMakeLists.txt', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateCMakeLists(deploymentAccessor, modelid))
     }
 
@@ -32,6 +34,16 @@ class FCMakeDumperPlaybackGenerator {
 
         target_link_libraries(${DUMPER_APP_NAME}
             PRIVATE json_serializer
+            «generateNativeInjection(fInterface.name, 'DUMPER_LINK_LIBRARIES', '#')»
         )
+
+        add_executable(${PLAYBACK_APP_NAME} ${PLAYBACK_SOURCES})
+
+        target_link_libraries(${PLAYBACK_APP_NAME}
+            PRIVATE json_serializer
+            «generateNativeInjection(fInterface.name, 'PLAYBACK_LINK_LIBRARIES', '#')»
+        )
+
+        «generateNativeInjection(fInterface.name, 'CMAKE_END', '#')»
     '''
 }

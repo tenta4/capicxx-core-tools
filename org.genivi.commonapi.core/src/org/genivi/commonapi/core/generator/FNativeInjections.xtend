@@ -14,11 +14,16 @@ class FNativeInjections {
     {
         val String comment = comment_sym + ' Native injection ' + tag + ' : '
         val String full_path = path + '_' + tag
+        var String injection = '';
         if (native_injections.containsKey(full_path))
         {
-            return comment + native_injections.get(full_path)
+            injection = native_injections.get(full_path)
         }
-        return comment + 'empty'
+        if (injection == '')
+        {
+            return comment + 'empty'
+        }
+        return comment + injection;
     }
 
     def String printInjections()
@@ -58,6 +63,10 @@ class FNativeInjections {
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_INCLUDES', getTagValue('PLAYBACK_INCLUDES', element.comment));
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_CONSTRUCTOR', getTagValue('PLAYBACK_READER_CONSTRUCTOR', element.comment));
                     native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_PRIVATE_MEMBERS', getTagValue('PLAYBACK_READER_PRIVATE_MEMBERS', element.comment));
+
+                    native_injections.put(fInterface.name + '_' + 'DUMPER_LINK_LIBRARIES', getTagValue('DUMPER_LINK_LIBRARIES', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_LINK_LIBRARIES', getTagValue('PLAYBACK_LINK_LIBRARIES', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'CMAKE_END', getTagValue('CMAKE_END', element.comment));
                 }
             }
         }

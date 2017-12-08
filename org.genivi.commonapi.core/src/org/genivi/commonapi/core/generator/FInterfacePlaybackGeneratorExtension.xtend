@@ -376,6 +376,7 @@ class FInterfacePlaybackGeneratorExtension {
         #include <CommonAPI/CommonAPI.hpp>
         #include <timeService/CTimeClient.hpp>
         #include <«fInterface.stubDefaultHeaderPath»>
+        #include <«fInterface.playbackSourcePath»>
 
         int main(int argc, char** argv)
         {
