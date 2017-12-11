@@ -21,11 +21,11 @@ class FInterfacePlaybackGeneratorExtension {
 
         fInterface.fillInjections()
         fileSystemAccess.generateFile(fInterface.dumpReaderHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDumpReader(deploymentAccessor, modelid))
-        fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDataProvoder(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.dataProviderHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDataProvider(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.playbackMainPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generatePlaybackMain(deploymentAccessor, modelid))
-        fileSystemAccess.generateFile('IVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateIVisitor(deploymentAccessor, modelid))
-        fileSystemAccess.generateFile('ServerVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateServerVisitor(deploymentAccessor, modelid))
-        fileSystemAccess.generateFile('ClientVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateClientVisitor(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.getIVisitorHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateIVisitor(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.serverVisitorHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateServerVisitor(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.clientVisitorHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateClientVisitor(deploymentAccessor, modelid))
     }
 
     def private generateClientMethodCall(FMethod fMethod)
@@ -153,7 +153,7 @@ class FInterfacePlaybackGeneratorExtension {
 
         #include <«fInterface.stubDefaultHeaderPath»>
 
-        #include "IVisitor"
+        #include "«fInterface.getIVisitorFile»"
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -215,7 +215,7 @@ class FInterfacePlaybackGeneratorExtension {
 
         #include <«fInterface.proxyHeaderPath»>
 
-        #include "IVisitor"
+        #include "«fInterface.getIVisitorFile»"
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -273,15 +273,16 @@ class FInterfacePlaybackGeneratorExtension {
 
     '''
 
-    def private generateDataProvoder(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+    def private generateDataProvider(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #include <functional>
 
         «generateNativeInjection(fInterface.name, 'PLAYBACK_INCLUDES', '//')»
 
+        #include "«fInterface.getIVisitorFile»"
+        #include "«fInterface.getDumpReaderHeaderFile»"
+
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
-
-        #include "«fInterface.getDumpReaderHeaderPath»"
 
         class CDataProvider
         {
@@ -421,7 +422,9 @@ class FInterfacePlaybackGeneratorExtension {
         #include <CommonAPI/CommonAPI.hpp>
         #include <timeService/CTimeClient.hpp>
 
-        #include <«fInterface.playbackSourcePath»>
+        #include "«fInterface.dataProviderHeaderFile»"
+        #include "«fInterface.serverVisitorFile»"
+        #include "«fInterface.clientVisitorFile»"
 
         int main(int argc, char** argv)
         {

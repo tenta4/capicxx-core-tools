@@ -15,7 +15,7 @@ class FCMakeDumperPlaybackGenerator {
     def generateCMakeDumperPlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid)
     {
         fInterface.fillInjections()
-        fileSystemAccess.generateFile('CMakeLists.txt', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateCMakeLists(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.getCMakePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateCMakeLists(deploymentAccessor, modelid))
     }
 
     def private generateCMakeLists(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''

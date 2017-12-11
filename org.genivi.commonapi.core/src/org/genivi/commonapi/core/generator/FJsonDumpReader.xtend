@@ -159,13 +159,4 @@ class FJsonDumpReader {
         }
 
     '''
-
-    // file does not depend of interface info
-    def getDumpReaderHeaderFile(FInterface fInterface) {
-        "JsonDumpReader.hpp"
-    }
-
-    def getDumpReaderHeaderPath(FInterface fInterface) {
-        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.dumpReaderHeaderFile
-    }
 }
