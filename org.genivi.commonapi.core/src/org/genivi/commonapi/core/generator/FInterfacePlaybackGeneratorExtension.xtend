@@ -3,6 +3,8 @@ package org.genivi.commonapi.core.generator
 import org.franca.core.franca.FMethod
 
 import javax.inject.Inject
+import java.util.HashSet
+
 import org.eclipse.core.resources.IResource
 import org.eclipse.xtext.generator.IFileSystemAccess
 import org.franca.core.franca.FInterface
@@ -10,6 +12,7 @@ import org.genivi.commonapi.core.deployment.PropertyAccessor
 import org.genivi.commonapi.core.preferences.PreferenceConstants
 
 class FInterfacePlaybackGeneratorExtension {
+    @Inject private extension FTypeGenerator
     @Inject private extension FrancaGeneratorExtensions
     @Inject private extension FNativeInjections
     @Inject private extension FJsonDumpReader
@@ -20,6 +23,7 @@ class FInterfacePlaybackGeneratorExtension {
         fileSystemAccess.generateFile(fInterface.dumpReaderHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDumpReader(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlayback(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.playbackMainPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlaybackMain(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile('IVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateIVisitor(deploymentAccessor, modelid))
     }
 
     def private generateClientMethodCall(FMethod fMethod)
@@ -42,19 +46,16 @@ class FInterfacePlaybackGeneratorExtension {
         return 'm_transport->' + fMethod.name + '(' + signature + ')'
     }
 
-    def private extGeneratePlayback(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
-        #include <fstream>
-        #include <iostream>
-        #include <vector>
-        #include <functional>
+    def private generateIVisitor(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+        #pragma once
 
-        #include "json_serializer/JsonSerializer.hpp"
-        #include "preprocessor/AdaptNamedAttrsAdt.hpp"
-        #include <«fInterface.serrializationHeaderPath»>
-        #include <«fInterface.stubHeaderPath»>
-        #include <«fInterface.proxyHeaderPath»>
+        «val generatedHeaders = new HashSet<String>»
+        «val libraryHeaders = new HashSet<String>»
+        «fInterface.generateRequiredTypeIncludes(generatedHeaders, libraryHeaders, false)»
 
-        «generateNativeInjection(fInterface.name, 'PLAYBACK_INCLUDES', '//')»
+        «FOR requiredHeaderFile : generatedHeaders.sort»
+            #include <«requiredHeaderFile»>
+        «ENDFOR»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -86,6 +87,75 @@ class FInterfacePlaybackGeneratorExtension {
                 virtual void visit_«method.name»(«method.name»Element& data) = 0;
             «ENDFOR»
         };
+
+        class IElement
+        {
+            virtual void visit(IVisitor& visitor) = 0;
+        };
+
+        // classes for service's attributes
+        «FOR attribute : fInterface.attributes»
+            «IF attribute.isObservable»
+            struct «attribute.name»Element : public IElement
+            {
+                void visit(IVisitor& visitor) override {
+                    visitor.visit_«attribute.name»(*this);
+                }
+                «attribute.getTypeName(fInterface, true)» m_data;
+            }; // class «attribute.name»Element
+
+            «ENDIF»
+        «ENDFOR»
+        // classes for service's broadcasts
+        «FOR broadcast : fInterface.broadcasts»
+            struct «broadcast.name»Element : public IElement
+            {
+                void visit(IVisitor& visitor) override {
+                    visitor.visit_«broadcast.name»(*this);
+                }
+
+                «FOR argument : broadcast.outArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+            }; // class «broadcast.name»Element
+
+        «ENDFOR»
+        // classes for service's methods
+        «FOR method : fInterface.methods»
+            struct «method.name»Element : public IElement
+            {
+                void visit(IVisitor& visitor) override {
+                    visitor.visit_«method.name»(*this);
+                }
+
+                «FOR argument : method.inArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+                «FOR argument : method.outArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+                «IF (method.hasError)»
+                    «method.getErrorNameReference(method.eContainer)» m_error;
+                «ENDIF»
+            }; // class «method.name»Element
+
+        «ENDFOR»
+
+        «fInterface.model.generateNamespaceEndDeclaration»
+        «fInterface.generateVersionNamespaceEnd»
+
+    '''
+
+    def private extGeneratePlayback(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+        #include <functional>
+
+        #include <«fInterface.proxyHeaderPath»>
+        #include "IVisitor"
+
+        «generateNativeInjection(fInterface.name, 'PLAYBACK_INCLUDES', '//')»
+
+        «fInterface.generateVersionNamespaceBegin»
+        «fInterface.model.generateNamespaceBeginDeclaration»
 
         class CServerVisitor : public IVisitor
         {
@@ -144,59 +214,6 @@ class FInterfacePlaybackGeneratorExtension {
         private:
             std::shared_ptr<«fInterface.proxyClassName»<>> m_transport;
         };
-
-        class IElement
-        {
-            virtual void visit(IVisitor& visitor) = 0;
-        };
-
-        // classes for service's attributes
-        «FOR attribute : fInterface.attributes»
-            «IF attribute.isObservable»
-            struct «attribute.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«attribute.name»(*this);
-                }
-                «attribute.getTypeName(fInterface, true)» m_data;
-            }; // class «attribute.name»Element
-
-            «ENDIF»
-        «ENDFOR»
-        // classes for service's broadcasts
-        «FOR broadcast : fInterface.broadcasts»
-            struct «broadcast.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«broadcast.name»(*this);
-                }
-
-                «FOR argument : broadcast.outArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-            }; // class «broadcast.name»Element
-
-        «ENDFOR»
-        // classes for service's methods
-        «FOR method : fInterface.methods»
-            struct «method.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«method.name»(*this);
-                }
-
-                «FOR argument : method.inArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-                «FOR argument : method.outArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-                «IF (method.hasError)»
-                    «method.getErrorNameReference(method.eContainer)» m_error;
-                «ENDIF»
-            }; // class «method.name»Element
-
-        «ENDFOR»
 
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
@@ -375,6 +392,7 @@ class FInterfacePlaybackGeneratorExtension {
 
         #include <CommonAPI/CommonAPI.hpp>
         #include <timeService/CTimeClient.hpp>
+        
         #include <«fInterface.stubDefaultHeaderPath»>
         #include <«fInterface.playbackSourcePath»>
 

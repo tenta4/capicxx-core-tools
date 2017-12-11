@@ -449,11 +449,11 @@ class FrancaGeneratorExtensions {
     }
 
     def getPlaybackMainFile(FInterface fInterface) {
-        fInterface.elementName + "PlaybackMain.cpp"
+        fInterface.elementName + "PlaybackMain.cpp_"
     }
 
     def getDumperMainFile(FInterface fInterface) {
-        fInterface.elementName + "DumperMain.cpp"
+        fInterface.elementName + "DumperMain.cpp_"
     }
 
     def getSerrializationHeaderPath(FInterface fInterface) {

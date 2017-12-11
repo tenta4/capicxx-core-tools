@@ -12,6 +12,12 @@ class FJsonDumpReader {
     def generateDumpReader(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #pragma once
 
+        #include <fstream>
+
+        #include "json_serializer/JsonSerializer.hpp"
+        #include "preprocessor/AdaptNamedAttrsAdt.hpp"
+        #include <«fInterface.serrializationHeaderPath»>
+
         struct SCall
         {
             std::string m_name;
@@ -44,7 +50,6 @@ class FJsonDumpReader {
             std::vector<int64_t> m_timestamps;
             std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
 
-            std::map<std::string, std::function<void(IVisitor&, boost::property_tree::ptree pt)>> m_functions;
             boost::property_tree::ptree m_curr_pt;
         };
 
