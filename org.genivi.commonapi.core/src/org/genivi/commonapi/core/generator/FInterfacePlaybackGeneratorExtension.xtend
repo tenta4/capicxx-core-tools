@@ -21,9 +21,11 @@ class FInterfacePlaybackGeneratorExtension {
 
         fInterface.fillInjections()
         fileSystemAccess.generateFile(fInterface.dumpReaderHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDumpReader(deploymentAccessor, modelid))
-        fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlayback(deploymentAccessor, modelid))
-        fileSystemAccess.generateFile(fInterface.playbackMainPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlaybackMain(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDataProvoder(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile(fInterface.playbackMainPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generatePlaybackMain(deploymentAccessor, modelid))
         fileSystemAccess.generateFile('IVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateIVisitor(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile('ServerVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateServerVisitor(deploymentAccessor, modelid))
+        fileSystemAccess.generateFile('ClientVisitor.hpp', PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateClientVisitor(deploymentAccessor, modelid))
     }
 
     def private generateClientMethodCall(FMethod fMethod)
@@ -146,13 +148,12 @@ class FInterfacePlaybackGeneratorExtension {
 
     '''
 
-    def private extGeneratePlayback(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
-        #include <functional>
+    def private generateServerVisitor(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+        #pragma once
 
-        #include <«fInterface.proxyHeaderPath»>
+        #include <«fInterface.stubDefaultHeaderPath»>
+
         #include "IVisitor"
-
-        «generateNativeInjection(fInterface.name, 'PLAYBACK_INCLUDES', '//')»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -183,6 +184,41 @@ class FInterfacePlaybackGeneratorExtension {
         private:
             std::shared_ptr<«fInterface.getStubClassName»> m_transport;
         };
+
+        «FOR attribute : fInterface.attributes»
+            «IF attribute.isObservable»
+            void CServerVisitor::visit_«attribute.name»(«attribute.name»Element& data) {
+                m_transport->fire«attribute.className»Changed(data.m_data);
+                std::cout << "Server «attribute.name»" << std::endl;
+            }
+            «ENDIF»
+        «ENDFOR»
+
+        «FOR broadcast : fInterface.broadcasts»
+            void CServerVisitor::visit_«broadcast.name»(«broadcast.name»Element& data) {
+                m_transport->fire«broadcast.name»Event(
+                «var boolean first = true»
+                «FOR argument : broadcast.outArgs»
+                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_«argument.name»
+                «ENDFOR»
+                );
+                std::cout << "Server «broadcast.name»" << std::endl;
+            }
+        «ENDFOR»
+
+        «fInterface.model.generateNamespaceEndDeclaration»
+        «fInterface.generateVersionNamespaceEnd»
+    '''
+
+    def private generateClientVisitor(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+        #pragma once
+
+        #include <«fInterface.proxyHeaderPath»>
+
+        #include "IVisitor"
+
+        «fInterface.generateVersionNamespaceBegin»
+        «fInterface.model.generateNamespaceBeginDeclaration»
 
         class CClientVisitor : public IVisitor
         {
@@ -215,27 +251,6 @@ class FInterfacePlaybackGeneratorExtension {
             std::shared_ptr<«fInterface.proxyClassName»<>> m_transport;
         };
 
-        «FOR attribute : fInterface.attributes»
-            «IF attribute.isObservable»
-            void CServerVisitor::visit_«attribute.name»(«attribute.name»Element& data) {
-                m_transport->fire«attribute.className»Changed(data.m_data);
-                std::cout << "Server «attribute.name»" << std::endl;
-            }
-            «ENDIF»
-        «ENDFOR»
-
-        «FOR broadcast : fInterface.broadcasts»
-            void CServerVisitor::visit_«broadcast.name»(«broadcast.name»Element& data) {
-                m_transport->fire«broadcast.name»Event(
-                «var boolean first = true»
-                «FOR argument : broadcast.outArgs»
-                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_«argument.name»
-                «ENDFOR»
-                );
-                std::cout << "Server «broadcast.name»" << std::endl;
-            }
-        «ENDFOR»
-
         «FOR method : fInterface.methods»
             void CClientVisitor::visit_«method.name»(«method.name»Element& data) {
                 CommonAPI::CallStatus _internalCallStatus;
@@ -252,6 +267,19 @@ class FInterfacePlaybackGeneratorExtension {
                 std::cout << "Client «method.name»" << std::endl;
             }
         «ENDFOR»
+
+        «fInterface.model.generateNamespaceEndDeclaration»
+        «fInterface.generateVersionNamespaceEnd»
+
+    '''
+
+    def private generateDataProvoder(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+        #include <functional>
+
+        «generateNativeInjection(fInterface.name, 'PLAYBACK_INCLUDES', '//')»
+
+        «fInterface.generateVersionNamespaceBegin»
+        «fInterface.model.generateNamespaceBeginDeclaration»
 
         #include "«fInterface.getDumpReaderHeaderPath»"
 
@@ -388,12 +416,11 @@ class FInterfacePlaybackGeneratorExtension {
 
     '''
 
-    def private extGeneratePlaybackMain(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
+    def private generatePlaybackMain(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
 
         #include <CommonAPI/CommonAPI.hpp>
         #include <timeService/CTimeClient.hpp>
-        
-        #include <«fInterface.stubDefaultHeaderPath»>
+
         #include <«fInterface.playbackSourcePath»>
 
         int main(int argc, char** argv)
