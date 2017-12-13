@@ -196,7 +196,11 @@ class FInterfacePlaybackGeneratorExtension {
 
         «FOR broadcast : fInterface.broadcasts»
             void CServerVisitor::visit_«broadcast.name»(«broadcast.name»Element& data) {
-                m_transport->fire«broadcast.name»Event(
+                «IF broadcast.selective»
+                    m_transport->«broadcast.stubAdapterClassFireSelectiveMethodName»(
+                «ELSE»
+                    m_transport->«broadcast.stubAdapterClassFireEventMethodName»(
+                «ENDIF»
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
                     «IF !first»,«ENDIF»«{first = false; ""}» data.m_«argument.name»

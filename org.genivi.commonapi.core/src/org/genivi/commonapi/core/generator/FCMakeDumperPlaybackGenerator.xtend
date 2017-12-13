@@ -41,8 +41,17 @@ class FCMakeDumperPlaybackGenerator {
 
         target_link_libraries(${PLAYBACK_APP_NAME}
             PRIVATE json_serializer
+            PRIVATE timeClient
             «generateNativeInjection(fInterface.name, 'PLAYBACK_LINK_LIBRARIES', '#')»
         )
+
+        if(NOT DEFINED MODULE_NAME)
+            message(ERROR "Plase set up MODULE_NAME variable before Dumper-Playback build")
+            exit()
+        endif()
+
+        use_ipc_api(${DUMPER_APP_NAME} ${MODULE_NAME})
+        use_ipc_api(${PLAYBACK_APP_NAME} ${MODULE_NAME})
 
         «generateNativeInjection(fInterface.name, 'CMAKE_END', '#')»
     '''

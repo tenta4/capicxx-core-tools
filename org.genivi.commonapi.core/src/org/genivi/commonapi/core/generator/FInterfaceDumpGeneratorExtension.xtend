@@ -159,7 +159,7 @@ class FInterfaceDumpGeneratorExtension {
             «extGenerateFieldsSerrialization(fStructType.base, fInterface)»
         «ENDIF»
         «FOR fField : fStructType.elements»
-            ("«fField.name»", «fField.name»)
+            ("«fField.name»", «fField.name.toFirstUpper»)
         «ENDFOR»
     '''
 
@@ -172,6 +172,9 @@ class FInterfaceDumpGeneratorExtension {
     def private extGenerateSerrialiation(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #ifndef «fInterface.defineName»_SERRIALIZATION_HPP_
         #define «fInterface.defineName»_SERRIALIZATION_HPP_
+
+        #include "json_serializer/JsonSerializer.hpp"
+        #include "preprocessor/AdaptNamedAttrsAdt.hpp"
 
         «val generatedHeaders = new HashSet<String>»
         «val libraryHeaders = new HashSet<String>»
@@ -446,11 +449,7 @@ class FInterfaceDumpGeneratorExtension {
 
         #include <CommonAPI/CommonAPI.hpp>
 
-        // include serrialization library headers before proxy include
-        #include "json_serializer/JsonSerializer.hpp"
-        #include "preprocessor/AdaptNamedAttrsAdt.hpp"
-
-        #include <v0/Ipc/SensorsSourceProxyDumpWrapper.hpp>
+        #include <«fInterface.proxyDumpWrapperHeaderPath»>
 
         template<template<typename ...> class T>
         class TCommonWrapper
@@ -489,6 +488,8 @@ class FInterfaceDumpGeneratorExtension {
 
         int main(int argc, char** argv)
         {
+            «fInterface.generateNamespaceUsage»
+
             if (argc < 2) {
                 std::cout << "Input service name please" << std::endl;
                 return 0;
@@ -499,7 +500,7 @@ class FInterfaceDumpGeneratorExtension {
 
             signal(SIGINT, signalHandler);
 
-            typedef TCommonWrapper<v0::Ipc::SensorsSourceProxyDumpWrapper> ProxyDumpWraper;
+            typedef TCommonWrapper<«fInterface.proxyDumpWrapperClassName»> ProxyDumpWraper;
             std::shared_ptr<ProxyDumpWraper> perception_proxy = std::make_shared<ProxyDumpWraper>(
                         "local", service_name, 5);
 
