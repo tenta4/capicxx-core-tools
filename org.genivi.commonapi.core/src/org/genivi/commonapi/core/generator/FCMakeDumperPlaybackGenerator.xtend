@@ -6,7 +6,6 @@ import org.eclipse.xtext.generator.IFileSystemAccess
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 import org.genivi.commonapi.core.preferences.PreferenceConstants
-import org.genivi.commonapi.core.preferences.FPreferences
 
 class FCMakeDumperPlaybackGenerator {
     @Inject private extension FNativeInjections

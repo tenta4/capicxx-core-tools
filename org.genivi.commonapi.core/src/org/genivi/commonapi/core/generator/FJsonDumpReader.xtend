@@ -2,7 +2,6 @@ package org.genivi.commonapi.core.generator
 
 import javax.inject.Inject
 import org.eclipse.core.resources.IResource
-import org.eclipse.xtext.generator.IFileSystemAccess
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 
