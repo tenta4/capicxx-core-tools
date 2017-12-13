@@ -16,6 +16,7 @@ class FInterfacePlaybackGeneratorExtension {
 
     def generatePlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
+        fInterface.fillInjections()
         fileSystemAccess.generateFile(fInterface.playbackSourcePath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGeneratePlayback(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.dumpReaderHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.generateDumpReader(deploymentAccessor, modelid))
     }
@@ -32,7 +33,7 @@ class FInterfacePlaybackGeneratorExtension {
             signature = signature + ', _error'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', ' + fMethod.outArgs.map[elementName].join(', ')
+            signature = signature + ', ' + fMethod.outArgs.map['data.m_' + elementName].join(', ')
 
         //if (!fMethod.fireAndForget) {
         //    signature += ", &_info"
@@ -52,8 +53,7 @@ class FInterfacePlaybackGeneratorExtension {
         #include <«fInterface.stubHeaderPath»>
         #include <«fInterface.proxyHeaderPath»>
 
-        // TODO: move to CDataProvider
-        «generateNativeInjection(fInterface.name + "PlaybackIncludes")»
+        «generateNativeInjection(fInterface.name + "_PLAYBACK_INCLUDES")»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -142,7 +142,6 @@ class FInterfacePlaybackGeneratorExtension {
 
         private:
             std::shared_ptr<«fInterface.proxyClassName»<>> m_transport;
-            «generateNativeInjection(fInterface.name + "ClientPlaybackPrivateMembers")»
         };
 
         class IElement
@@ -221,22 +220,17 @@ class FInterfacePlaybackGeneratorExtension {
 
         «FOR method : fInterface.methods»
             void CClientVisitor::visit_«method.name»(«method.name»Element& data) {
-                «generateNativeInjection(fInterface.name + "_" + method.name + "_begin_ClientPlayback")»
                 CommonAPI::CallStatus _internalCallStatus;
                 «IF method.hasError»
                     «method.getErrorNameReference(method.eContainer)» _error;
                 «ENDIF»
-                «FOR argument : method.outArgs»
-                     «argument.getTypeName(method, true)» «argument.elementName»;
-                «ENDFOR»
                 «method.generateClientMethodCall»;
                 «IF method.hasError»
                     if (_error != data.m_error)
                     {
-                        throw std::runtime_error("Server response does not match the stored value for «method.name»() call");
+                        std::cout << "Warning : Server response does not match the stored value for «method.name»() call";
                     }
                 «ENDIF»
-                «generateNativeInjection(fInterface.name + "_" + method.name + "_end_ClientPlayback")»
                 std::cout << "Client «method.name»" << std::endl;
             }
         «ENDFOR»
@@ -250,6 +244,7 @@ class FInterfacePlaybackGeneratorExtension {
                 : m_reader(file_name)
                 , m_curr_ts(std::numeric_limits<std::size_t>::max())
             {
+                «generateNativeInjection(fInterface.name + "_PLAYBACK_READER_CONSTRUCTOR")»
                 initReaders();
             }
             void provide(std::size_t ts_id, IVisitor& visitor)
@@ -282,7 +277,7 @@ class FInterfacePlaybackGeneratorExtension {
             JsonDumpReader m_reader;
             std::map<std::string, std::function<void(IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
-
+            «generateNativeInjection(fInterface.name + "_PLAYBACK_READER_PRIVATE_MEMBERS")»
         private: // methods
             void providePastRecord(std::size_t ts_id, const std::vector<std::size_t>& storage, IVisitor &visitor)
             {
@@ -320,8 +315,6 @@ class FInterfacePlaybackGeneratorExtension {
 
             void initReaders()
             {
-                «generateNativeInjection(fInterface.name + "PlaybackCtor")»
-
                 m_readers = {
                 «FOR attribute : fInterface.attributes»
                     «IF attribute.isObservable»
@@ -329,7 +322,7 @@ class FInterfacePlaybackGeneratorExtension {
                             {
                                 «attribute.name»Element data_elem;
                                 m_reader.readItem("«attribute.name»", data_elem.m_data);
-                                «generateNativeInjection("READ_" + fInterface.name + attribute.name)»
+                                «generateNativeInjection(fInterface.name + '_' + attribute.name + '_READ')»
 
                                 visitor.visit_«attribute.name»(data_elem);
                             }
@@ -342,7 +335,7 @@ class FInterfacePlaybackGeneratorExtension {
                             «broadcast.name»Element data_elem;
                             «FOR argument : broadcast.outArgs»
                                 m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
+                                «generateNativeInjection(fInterface.name + '_' + argument.name + '_READ')»
 
                             «ENDFOR»
                             visitor.visit_«broadcast.name»(data_elem);
@@ -355,18 +348,16 @@ class FInterfacePlaybackGeneratorExtension {
                             «method.name»Element data_elem;
                             «FOR argument : method.inArgs»
                                 m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-
                             «ENDFOR»
                             «FOR argument : method.outArgs»
                                 m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection("READ_" + fInterface.name + argument.name)»
-
                             «ENDFOR»
                             «IF (method.hasError)»
                                 m_reader.readItem("_error", data_elem.m_error);
                             «ENDIF»
+                            «generateNativeInjection(fInterface.name + '_' + method.name + '_READ')»
                             visitor.visit_«method.name»(data_elem);
+                            «generateNativeInjection(fInterface.name + '_' + method.name + '_AFTER_SEND')»
                         }
                     },
                 «ENDFOR»

@@ -29,6 +29,7 @@ class FInterfaceDumpGeneratorExtension {
 
     def generateDumper(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
+        fInterface.fillInjections()
         usedTypes = new HashSet<FStructType>
         generateSyncCalls = FPreferences::getInstance.getPreference(PreferenceConstants::P_GENERATE_SYNC_CALLS, "true").equals("true")
         fileSystemAccess.generateFile(fInterface.serrializationHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateSerrialiation(deploymentAccessor, modelid))
@@ -321,7 +322,7 @@ class FInterfaceDumpGeneratorExtension {
         #include <«fInterface.proxyHeaderPath»>
         #include <«fInterface.proxyDumpWriterHeaderPath»>
 
-        «generateNativeInjection(fInterface.name + "Include")»
+        «generateNativeInjection(fInterface.name + "_DUMPER_INCLUDES")»
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -334,20 +335,19 @@ class FInterfaceDumpGeneratorExtension {
                     typedef typename «fInterface.proxyClassName»<_AttributeExtensions...>::«method.asyncCallbackClassName» «method.asyncCallbackClassName»;
                 «ENDIF»
             «ENDFOR»
-
+            «generateNativeInjection(fInterface.name + "_DUMPER_PRIVATE_MEMBERS")»
         public:
             «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
                 , m_writer("«fInterface.name»_dump.json")
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
-                «generateNativeInjection(fInterface.name + "Ctor")»
 
                 «FOR fAttribute : fInterface.attributes»
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
-                            «generateNativeInjection("WRITE_" + fInterface.name + fAttribute.name)»
+                            «generateNativeInjection(fInterface.name + '_' + fAttribute.name + '_WRITE')»
 
                             // TODO: add mutex?
                             m_writer.beginQuery("«fAttribute.className»");
@@ -364,7 +364,7 @@ class FInterfaceDumpGeneratorExtension {
                             // TODO: add mutex?
                             m_writer.beginQuery("«broadcast.className»");
                             «FOR argument : broadcast.outArgs»
-                                «generateNativeInjection("WRITE_" + fInterface.name + argument.name)»
+                                «generateNativeInjection(fInterface.name + '_' + argument.name + '_WRITE')»
                                 m_writer.adjustQuery(«argument.name», "«argument.name»");
                             «ENDFOR»
                         });
