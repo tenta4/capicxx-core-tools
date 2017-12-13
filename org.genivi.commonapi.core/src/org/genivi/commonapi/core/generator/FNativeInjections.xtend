@@ -9,6 +9,19 @@ import org.franca.core.franca.FInterface
 class FNativeInjections {
 
     val Map<String, String> native_injections = new HashMap<String, String>()
+    val Map<String, String> options = new HashMap<String, String>()
+
+    def String optionValue(String path, String tag)
+    {
+        var String value = '';
+        val String full_path = path + '_' + tag
+        if (options.containsKey(full_path))
+        {
+            value = options.get(full_path)
+        }
+
+        return value
+    }
 
     def String generateNativeInjection(String path, String tag, String comment_sym)
     {
@@ -36,7 +49,7 @@ class FNativeInjections {
         return res;
     }
 
-    def private String getTagValue(String tag, String data)
+    def private String getTagValue(String tag, String data, String default_value)
     {
         val String openTag = '<'+tag+'>'
         val String closeTag = '</'+tag+'>'
@@ -47,7 +60,7 @@ class FNativeInjections {
         {
             return data.substring(open + openTag.length(), close).replaceAll('<star/>', '*')
         }
-        return ''
+        return default_value
     }
 
     def fillInjections(FInterface fInterface)
@@ -56,17 +69,20 @@ class FNativeInjections {
             for (element : fInterface.comment.elements) {
                 if (element.type == FAnnotationType::EXPERIMENTAL)
                 {
-                    native_injections.put(fInterface.name + '_' + 'DUMPER_INCLUDES', getTagValue('DUMPER_INCLUDES', element.comment));
-                    //native_injections.put(fInterface.name + '_' + 'DUMPER_CONSTRUCTOR', getTagValue('DUMPER_CONSTRUCTOR', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'DUMPER_PRIVATE_MEMBERS', getTagValue('DUMPER_PRIVATE_MEMBERS', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'DUMPER_INCLUDES', getTagValue('DUMPER_INCLUDES', element.comment, ''));
+                    //native_injections.put(fInterface.name + '_' + 'DUMPER_CONSTRUCTOR', getTagValue('DUMPER_CONSTRUCTOR', element.comment, ''));
+                    native_injections.put(fInterface.name + '_' + 'DUMPER_PRIVATE_MEMBERS', getTagValue('DUMPER_PRIVATE_MEMBERS', element.comment, ''));
 
-                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_INCLUDES', getTagValue('PLAYBACK_INCLUDES', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_CONSTRUCTOR', getTagValue('PLAYBACK_READER_CONSTRUCTOR', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_PRIVATE_MEMBERS', getTagValue('PLAYBACK_READER_PRIVATE_MEMBERS', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_INCLUDES', getTagValue('PLAYBACK_INCLUDES', element.comment, ''));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_CONSTRUCTOR', getTagValue('PLAYBACK_READER_CONSTRUCTOR', element.comment, ''));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_READER_PRIVATE_MEMBERS', getTagValue('PLAYBACK_READER_PRIVATE_MEMBERS', element.comment, ''));
 
-                    native_injections.put(fInterface.name + '_' + 'DUMPER_LINK_LIBRARIES', getTagValue('DUMPER_LINK_LIBRARIES', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_LINK_LIBRARIES', getTagValue('PLAYBACK_LINK_LIBRARIES', element.comment));
-                    native_injections.put(fInterface.name + '_' + 'CMAKE_END', getTagValue('CMAKE_END', element.comment));
+                    native_injections.put(fInterface.name + '_' + 'DUMPER_LINK_LIBRARIES', getTagValue('DUMPER_LINK_LIBRARIES', element.comment, ''));
+                    native_injections.put(fInterface.name + '_' + 'PLAYBACK_LINK_LIBRARIES', getTagValue('PLAYBACK_LINK_LIBRARIES', element.comment, ''));
+                    native_injections.put(fInterface.name + '_' + 'CMAKE_END', getTagValue('CMAKE_END', element.comment, ''));
+
+                    options.put(fInterface.name + '_' + 'OPTION_DUMPER_ENABLE', getTagValue('OPTION_DUMPER_ENABLE', element.comment, 'true'));
+                    options.put(fInterface.name + '_' + 'OPTION_PLAYBACK_ENABLE', getTagValue('OPTION_PLAYBACK_ENABLE', element.comment, 'true'));
                 }
             }
         }
@@ -76,8 +92,8 @@ class FNativeInjections {
             if (attribute.comment != null) {
                 for (element : attribute.comment.elements) {
                     if (element.type == FAnnotationType::EXPERIMENTAL) {
-                        native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'READ', getTagValue('READ', element.comment));
-                        native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'WRITE', getTagValue('WRITE', element.comment));
+                        native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'READ', getTagValue('READ', element.comment, ''));
+                        native_injections.put(fInterface.name + '_' + attribute.name + '_' + 'WRITE', getTagValue('WRITE', element.comment, ''));
                     }
                 }
             }
@@ -88,8 +104,8 @@ class FNativeInjections {
             if (method.comment != null) {
                 for (element : method.comment.elements) {
                     if (element.type == FAnnotationType::EXPERIMENTAL) {
-                        native_injections.put(fInterface.name + '_' + method.name + '_' + 'READ', getTagValue('READ', element.comment));
-                        native_injections.put(fInterface.name + '_' + method.name + '_' + 'AFTER_SEND', getTagValue('AFTER_SEND', element.comment));
+                        native_injections.put(fInterface.name + '_' + method.name + '_' + 'READ', getTagValue('READ', element.comment, ''));
+                        native_injections.put(fInterface.name + '_' + method.name + '_' + 'AFTER_SEND', getTagValue('AFTER_SEND', element.comment, ''));
                     }
                 }
             }
