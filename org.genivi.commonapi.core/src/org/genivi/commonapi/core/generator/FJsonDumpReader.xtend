@@ -2,7 +2,6 @@ package org.genivi.commonapi.core.generator
 
 import javax.inject.Inject
 import org.eclipse.core.resources.IResource
-import org.eclipse.xtext.generator.IFileSystemAccess
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 
@@ -11,6 +10,10 @@ class FJsonDumpReader {
 
     def generateDumpReader(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #pragma once
+
+        #include <fstream>
+
+        #include <«fInterface.serrializationHeaderPath»>
 
         struct SCall
         {
@@ -44,7 +47,6 @@ class FJsonDumpReader {
             std::vector<int64_t> m_timestamps;
             std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
 
-            std::map<std::string, std::function<void(IVisitor&, boost::property_tree::ptree pt)>> m_functions;
             boost::property_tree::ptree m_curr_pt;
         };
 
@@ -154,13 +156,4 @@ class FJsonDumpReader {
         }
 
     '''
-
-    // file does not depend of interface info
-    def getDumpReaderHeaderFile(FInterface fInterface) {
-        "JsonDumpReader.hpp"
-    }
-
-    def getDumpReaderHeaderPath(FInterface fInterface) {
-        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.dumpReaderHeaderFile
-    }
 }

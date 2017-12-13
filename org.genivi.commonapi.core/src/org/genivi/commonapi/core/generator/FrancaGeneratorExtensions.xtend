@@ -440,20 +440,80 @@ class FrancaGeneratorExtensions {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.stubHeaderFile
     }
 
+    def getDumperPlaybackDirectoryPath() {
+        'dumper-playback/'
+    }
+
     def getSerrializationFile(FInterface fInterface) {
         fInterface.elementName + "Serrialization.hpp"
     }
 
-    def getPlaybackSourceFile(FInterface fInterface) {
-        fInterface.elementName + "Playback.hpp"
+    def getDataProviderHeaderFile(FInterface fInterface) {
+        fInterface.elementName + "DataProvider.hpp"
+    }
+
+    def getDumpReaderHeaderFile(FInterface fInterface) {
+        'JsonDumpReader.hpp'
+    }
+
+    def getIVisitorFile(FInterface fInterface) {
+        "IVisitor.hpp"
+    }
+
+    def getServerVisitorFile(FInterface fInterface) {
+        "ServerVisitor.hpp"
+    }
+
+    def getClientVisitorFile(FInterface fInterface) {
+        "ClientVisitor.hpp"
+    }
+
+    def getPlaybackMainFile(FInterface fInterface) {
+        fInterface.elementName + "PlaybackMain.cpp"
+    }
+
+    def getDumperMainFile(FInterface fInterface) {
+        fInterface.elementName + "DumperMain.cpp"
+    }
+
+    def getCMakeFile(FInterface fInterface) {
+        'CMakeLists.txt'
     }
 
     def getSerrializationHeaderPath(FInterface fInterface) {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.serrializationFile
     }
 
-    def getPlaybackSourcePath(FInterface fInterface) {
-        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.playbackSourceFile
+    def getDataProviderHeaderPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.dataProviderHeaderFile
+    }
+
+    def getDumpReaderHeaderPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.dumpReaderHeaderFile
+    }
+
+    def getIVisitorHeaderPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.getIVisitorFile
+    }
+
+    def getServerVisitorHeaderPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.serverVisitorFile
+    }
+
+    def getClientVisitorHeaderPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.clientVisitorFile
+    }
+
+    def getPlaybackMainPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.playbackMainFile
+    }
+
+    def getDumperMainPath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.dumperMainFile
+    }
+
+    def getCMakePath(FInterface fInterface) {
+        fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + dumperPlaybackDirectoryPath + fInterface.getCMakeFile
     }
 
     def generateSelectiveBroadcastStubIncludes(FInterface fInterface, Collection<String> generatedHeaders,
