@@ -53,7 +53,7 @@ class FJsonDumpReader {
         template<class T>
         void JsonDumpReader::readItem(const std::string& tag, T& res) {
             boost::property_tree::ptree tmp_pt = m_curr_pt.get_child(tag);
-            JsonSerializer::readFromPtree(tmp_pt, res);
+            DataSerializer::readFromPtree(tmp_pt, res);
         }
 
         const std::string& JsonDumpReader::getRecordName(std::size_t ts_id) {

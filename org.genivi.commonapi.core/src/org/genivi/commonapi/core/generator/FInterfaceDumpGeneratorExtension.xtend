@@ -10,6 +10,7 @@ import org.genivi.commonapi.core.preferences.PreferenceConstants
 import org.genivi.commonapi.core.preferences.FPreferences
 
 import org.franca.core.franca.FTypeRef
+import org.franca.core.franca.FTypeCollection
 import org.franca.core.franca.FStructType
 import org.franca.core.franca.FTypeDef
 import org.franca.core.franca.FArrayType
@@ -24,13 +25,13 @@ class FInterfaceDumpGeneratorExtension {
     @Inject private extension FrancaGeneratorExtensions
     @Inject private extension FNativeInjections
 
-    var HashSet<FStructType> usedTypes;
+    var HashSet<FModelElement> usedTypes;
     var boolean generateSyncCalls = true
 
     def generateDumper(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
         fInterface.fillInjections()
-        usedTypes = new HashSet<FStructType>
+        usedTypes = new HashSet<FModelElement>
         generateSyncCalls = FPreferences::getInstance.getPreference(PreferenceConstants::P_GENERATE_SYNC_CALLS, "true").equals("true")
         fileSystemAccess.generateFile(fInterface.serrializationHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateSerrialiation(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWrapperHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWrapper(deploymentAccessor, modelid))
@@ -60,13 +61,48 @@ class FInterfaceDumpGeneratorExtension {
     '''
 
     def dispatch extGenerateTypeSerrialization(FEnumerationType fEnumerationType, FInterface fInterface) '''
-        #ifndef «fEnumerationType.getDefineName(fInterface)»
-        #define «fEnumerationType.getDefineName(fInterface)»
-        ADAPT_NAMED_ATTRS_ADT(
-        «(fEnumerationType as FModelElement).getElementName(fInterface, true)»,
-        ("value_", value_)
-        ,SIMPLE_ACCESS)
-        #endif // «fEnumerationType.getDefineName(fInterface)»
+        «IF usedTypes.add(fEnumerationType)»
+            #ifndef «fEnumerationType.getDefineName(fInterface)»
+            #define «fEnumerationType.getDefineName(fInterface)»
+            «(fEnumerationType.eContainer as FTypeCollection).generateVersionNamespaceBegin»
+            «fEnumerationType.model.generateNamespaceBeginDeclaration»
+            std::istream& operator>> (std::istream& s, «fEnumerationType.getElementName(fInterface, true)» & val) {
+                std::string value;
+                s >> value;
+
+                static std::map<std::string, «fEnumerationType.getElementName(fInterface, true)»> conv_map = {
+                «FOR element : fEnumerationType.enumerators»
+                    {"«element.name»", «fEnumerationType.getElementName(fInterface, true)»::«element.name»},
+                «ENDFOR»
+                };
+
+                auto item = conv_map.find(value);
+                if (item == conv_map.end()) {
+                    throw std::runtime_error("Read: Unexpected enum value : '" + value + "'");
+                }
+                val = item->second;
+
+                return s;
+            }
+
+            std::ostream& operator<< (std::ostream& s, «fEnumerationType.getElementName(fInterface, true)» val) {
+                static std::map<«fEnumerationType.getElementName(fInterface, true)», std::string> conv_map = {
+                «FOR element : fEnumerationType.enumerators»
+                    {«fEnumerationType.getElementName(fInterface, true)»::«element.name», "«element.name»"},
+                «ENDFOR»
+                };
+
+                auto item = conv_map.find(val);
+                if (item == conv_map.end()) {
+                    throw std::runtime_error("Write: Unexpected enum value : '" + std::to_string(val) + "'");
+                }
+                s << item->second;
+                return s;
+            }
+            «fEnumerationType.model.generateNamespaceEndDeclaration»
+            «(fEnumerationType.eContainer as FTypeCollection).generateVersionNamespaceEnd»
+            #endif // «fEnumerationType.getDefineName(fInterface)»
+        «ENDIF»
     '''
 
     def dispatch extGenerateTypeSerrialization(FUnionType fUnionType, FInterface fInterface) '''
@@ -84,8 +120,7 @@ class FInterfaceDumpGeneratorExtension {
         )
         #endif // BOOST«fUnionType.getDefineName(fInterface)»
 
-        namespace JsonSerializer {
-        namespace Private{
+        namespace DataSerializer {
 
             class my_visitor : public boost::static_visitor<«fUnionType.getElementName(fInterface, true)»>
             {
@@ -98,42 +133,33 @@ class FInterfaceDumpGeneratorExtension {
                 }
             };
 
-            // TODO: hardcoded template parameter ::v1::Ipc::RenderingEngineTypes::Variant.
-            // Need to specificate for «fUnionType.name»
-            // but there is some compilation problems with it
             template<>
-            struct TPtreeSerializer<::v1::Ipc::RenderingEngineTypes::Variant>
+            struct TPtreeSerializeCustomPrimitive<«fUnionType.getElementName(fInterface, true)»> : std::true_type
             {
-                static void read(::v1::Ipc::RenderingEngineTypes::Variant& out, const boost::property_tree::ptree& ptree)
+                static void read(«fUnionType.getElementName(fInterface, true)»& out, const boost::property_tree::ptree& ptree)
                 {
                     Boost«fUnionType.name» v;
-                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::read(v, ptree);
+                    DataSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::read(v, ptree);
 
-                    «fUnionType.getElementName(fInterface, true)» variant_value =
-                            boost::apply_visitor( my_visitor(), v);
-
-                    out.setValue(variant_value);
-                    out.setType((v1::Ipc::RenderingEngineTypes::EVariantType::Literal)(
-                                    variant_value.getMaxValueType() - variant_value.getValueType()));
+                    out = boost::apply_visitor(my_visitor(), v);
                 }
-                static void write(const ::v1::Ipc::RenderingEngineTypes::Variant& in, boost::property_tree::ptree& ptree)
+                static void write(const «fUnionType.getElementName(fInterface, true)»& in, boost::property_tree::ptree& ptree)
                 {
                     Boost«fUnionType.name» v;
-                    switch (in.getValue().getMaxValueType() - in.getValue().getValueType())
+                    switch (in.getMaxValueType() - in.getValueType())
                         {
                         «var int counter = 0»
                         «FOR fField : fUnionType.elements»
                             case «counter»:
-                                v = {in.getValue().get<«fField.getTypeName(fInterface, true)»>()};
+                                v = {in.get<«fField.getTypeName(fInterface, true)»>()};
                                 break;
                                 «{counter += 1; ""}»
                         «ENDFOR»
                     }
 
-                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::write(v, ptree);
+                    DataSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::write(v, ptree);
                 }
             };
-        }
         }
 
     '''
@@ -173,7 +199,7 @@ class FInterfaceDumpGeneratorExtension {
         #ifndef «fInterface.defineName»_SERRIALIZATION_HPP_
         #define «fInterface.defineName»_SERRIALIZATION_HPP_
 
-        #include "json_serializer/JsonSerializer.hpp"
+        #include "data_serializer/DataSerializer.hpp"
         #include "preprocessor/AdaptNamedAttrsAdt.hpp"
 
         «val generatedHeaders = new HashSet<String>»
@@ -205,7 +231,6 @@ class FInterfaceDumpGeneratorExtension {
                 «extGenerateSerrializationMain(argument.type, fInterface)»
             «ENDFOR»
 
-            //TODO: get rid of enum duplicates (just for beauty)
             «IF methods.hasError»
                 «extGenerateTypeSerrialization(methods.errorEnum, fInterface)»
             «ENDIF»
@@ -264,7 +289,7 @@ class FInterfaceDumpGeneratorExtension {
                 boost::property_tree::ptree child_ptree;
 
                 «fInterface.extVersionTypeName()» version{«fInterface.version.major», «fInterface.version.minor»};
-                JsonSerializer::Private::TPtreeSerializer<«fInterface.extVersionTypeName()»>::write(version, child_ptree);
+                DataSerializer::Private::TPtreeSerializer<«fInterface.extVersionTypeName()»>::write(version, child_ptree);
 
                 m_stream << "{\n\"" << "version" << "\": ";
                 boost::property_tree::write_json(m_stream, child_ptree);
@@ -288,7 +313,7 @@ class FInterfaceDumpGeneratorExtension {
                     std::chrono::system_clock::now().time_since_epoch()).count();
 
                 boost::property_tree::ptree child_ptree;
-                JsonSerializer::Private::TPtreeSerializer<«fInterface.extCommandTypeName()»>::write({us, name}, child_ptree);
+                DataSerializer::Private::TPtreeSerializer<«fInterface.extCommandTypeName()»>::write({us, name}, child_ptree);
 
                 m_current_ptree.add_child("declaration", child_ptree);
                 child_ptree.clear();
@@ -301,7 +326,7 @@ class FInterfaceDumpGeneratorExtension {
             {
                 boost::property_tree::ptree& data_ptree = m_current_ptree.get_child("params");
                 boost::property_tree::ptree child_ptree;
-                JsonSerializer::Private::TPtreeSerializer<T>::write(var, child_ptree);
+                DataSerializer::Private::TPtreeSerializer<T>::write(var, child_ptree);
                 data_ptree.add_child(name, child_ptree);
             }
 
