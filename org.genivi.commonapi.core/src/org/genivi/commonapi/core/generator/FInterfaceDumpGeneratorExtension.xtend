@@ -84,8 +84,7 @@ class FInterfaceDumpGeneratorExtension {
         )
         #endif // BOOST«fUnionType.getDefineName(fInterface)»
 
-        namespace JsonSerializer {
-        namespace Private{
+        namespace DataSerializer {
 
             class my_visitor : public boost::static_visitor<«fUnionType.getElementName(fInterface, true)»>
             {
@@ -98,42 +97,33 @@ class FInterfaceDumpGeneratorExtension {
                 }
             };
 
-            // TODO: hardcoded template parameter ::v1::Ipc::RenderingEngineTypes::Variant.
-            // Need to specificate for «fUnionType.name»
-            // but there is some compilation problems with it
             template<>
-            struct TPtreeSerializer<::v1::Ipc::RenderingEngineTypes::Variant>
+            struct TPtreeSerializeCustomPrimitive<«fUnionType.getElementName(fInterface, true)»> : std::true_type
             {
-                static void read(::v1::Ipc::RenderingEngineTypes::Variant& out, const boost::property_tree::ptree& ptree)
+                static void read(«fUnionType.getElementName(fInterface, true)»& out, const boost::property_tree::ptree& ptree)
                 {
                     Boost«fUnionType.name» v;
-                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::read(v, ptree);
+                    DataSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::read(v, ptree);
 
-                    «fUnionType.getElementName(fInterface, true)» variant_value =
-                            boost::apply_visitor( my_visitor(), v);
-
-                    out.setValue(variant_value);
-                    out.setType((v1::Ipc::RenderingEngineTypes::EVariantType::Literal)(
-                                    variant_value.getMaxValueType() - variant_value.getValueType()));
+                    out = boost::apply_visitor(my_visitor(), v);
                 }
-                static void write(const ::v1::Ipc::RenderingEngineTypes::Variant& in, boost::property_tree::ptree& ptree)
+                static void write(const «fUnionType.getElementName(fInterface, true)»& in, boost::property_tree::ptree& ptree)
                 {
                     Boost«fUnionType.name» v;
-                    switch (in.getValue().getMaxValueType() - in.getValue().getValueType())
+                    switch (in.getMaxValueType() - in.getValueType())
                         {
                         «var int counter = 0»
                         «FOR fField : fUnionType.elements»
                             case «counter»:
-                                v = {in.getValue().get<«fField.getTypeName(fInterface, true)»>()};
+                                v = {in.get<«fField.getTypeName(fInterface, true)»>()};
                                 break;
                                 «{counter += 1; ""}»
                         «ENDFOR»
                     }
 
-                    JsonSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::write(v, ptree);
+                    DataSerializer::Private::TPtreeSerializer<Boost«fUnionType.name»>::write(v, ptree);
                 }
             };
-        }
         }
 
     '''
@@ -173,7 +163,7 @@ class FInterfaceDumpGeneratorExtension {
         #ifndef «fInterface.defineName»_SERRIALIZATION_HPP_
         #define «fInterface.defineName»_SERRIALIZATION_HPP_
 
-        #include "json_serializer/JsonSerializer.hpp"
+        #include "data_serializer/DataSerializer.hpp"
         #include "preprocessor/AdaptNamedAttrsAdt.hpp"
 
         «val generatedHeaders = new HashSet<String>»
@@ -205,7 +195,6 @@ class FInterfaceDumpGeneratorExtension {
                 «extGenerateSerrializationMain(argument.type, fInterface)»
             «ENDFOR»
 
-            //TODO: get rid of enum duplicates (just for beauty)
             «IF methods.hasError»
                 «extGenerateTypeSerrialization(methods.errorEnum, fInterface)»
             «ENDIF»
@@ -264,7 +253,7 @@ class FInterfaceDumpGeneratorExtension {
                 boost::property_tree::ptree child_ptree;
 
                 «fInterface.extVersionTypeName()» version{«fInterface.version.major», «fInterface.version.minor»};
-                JsonSerializer::Private::TPtreeSerializer<«fInterface.extVersionTypeName()»>::write(version, child_ptree);
+                DataSerializer::Private::TPtreeSerializer<«fInterface.extVersionTypeName()»>::write(version, child_ptree);
 
                 m_stream << "{\n\"" << "version" << "\": ";
                 boost::property_tree::write_json(m_stream, child_ptree);
@@ -288,7 +277,7 @@ class FInterfaceDumpGeneratorExtension {
                     std::chrono::system_clock::now().time_since_epoch()).count();
 
                 boost::property_tree::ptree child_ptree;
-                JsonSerializer::Private::TPtreeSerializer<«fInterface.extCommandTypeName()»>::write({us, name}, child_ptree);
+                DataSerializer::Private::TPtreeSerializer<«fInterface.extCommandTypeName()»>::write({us, name}, child_ptree);
 
                 m_current_ptree.add_child("declaration", child_ptree);
                 child_ptree.clear();
@@ -301,7 +290,7 @@ class FInterfaceDumpGeneratorExtension {
             {
                 boost::property_tree::ptree& data_ptree = m_current_ptree.get_child("params");
                 boost::property_tree::ptree child_ptree;
-                JsonSerializer::Private::TPtreeSerializer<T>::write(var, child_ptree);
+                DataSerializer::Private::TPtreeSerializer<T>::write(var, child_ptree);
                 data_ptree.add_child(name, child_ptree);
             }
 
