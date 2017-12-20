@@ -10,6 +10,7 @@ import org.genivi.commonapi.core.preferences.PreferenceConstants
 import org.genivi.commonapi.core.preferences.FPreferences
 
 import org.franca.core.franca.FTypeRef
+import org.franca.core.franca.FTypeCollection
 import org.franca.core.franca.FStructType
 import org.franca.core.franca.FTypeDef
 import org.franca.core.franca.FArrayType
@@ -24,13 +25,13 @@ class FInterfaceDumpGeneratorExtension {
     @Inject private extension FrancaGeneratorExtensions
     @Inject private extension FNativeInjections
 
-    var HashSet<FStructType> usedTypes;
+    var HashSet<FModelElement> usedTypes;
     var boolean generateSyncCalls = true
 
     def generateDumper(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
         fInterface.fillInjections()
-        usedTypes = new HashSet<FStructType>
+        usedTypes = new HashSet<FModelElement>
         generateSyncCalls = FPreferences::getInstance.getPreference(PreferenceConstants::P_GENERATE_SYNC_CALLS, "true").equals("true")
         fileSystemAccess.generateFile(fInterface.serrializationHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateSerrialiation(deploymentAccessor, modelid))
         fileSystemAccess.generateFile(fInterface.proxyDumpWrapperHeaderPath, PreferenceConstants.P_OUTPUT_SKELETON, fInterface.extGenerateDumpClientWrapper(deploymentAccessor, modelid))
@@ -60,13 +61,48 @@ class FInterfaceDumpGeneratorExtension {
     '''
 
     def dispatch extGenerateTypeSerrialization(FEnumerationType fEnumerationType, FInterface fInterface) '''
-        #ifndef «fEnumerationType.getDefineName(fInterface)»
-        #define «fEnumerationType.getDefineName(fInterface)»
-        ADAPT_NAMED_ATTRS_ADT(
-        «(fEnumerationType as FModelElement).getElementName(fInterface, true)»,
-        ("value_", value_)
-        ,SIMPLE_ACCESS)
-        #endif // «fEnumerationType.getDefineName(fInterface)»
+        «IF usedTypes.add(fEnumerationType)»
+            #ifndef «fEnumerationType.getDefineName(fInterface)»
+            #define «fEnumerationType.getDefineName(fInterface)»
+            «(fEnumerationType.eContainer as FTypeCollection).generateVersionNamespaceBegin»
+            «fEnumerationType.model.generateNamespaceBeginDeclaration»
+            std::istream& operator>> (std::istream& s, «fEnumerationType.getElementName(fInterface, true)» & val) {
+                std::string value;
+                s >> value;
+
+                static std::map<std::string, «fEnumerationType.getElementName(fInterface, true)»> conv_map = {
+                «FOR element : fEnumerationType.enumerators»
+                    {"«element.name»", «fEnumerationType.getElementName(fInterface, true)»::«element.name»},
+                «ENDFOR»
+                };
+
+                auto item = conv_map.find(value);
+                if (item == conv_map.end()) {
+                    throw std::runtime_error("Read: Unexpected enum value : '" + value + "'");
+                }
+                val = item->second;
+
+                return s;
+            }
+
+            std::ostream& operator<< (std::ostream& s, «fEnumerationType.getElementName(fInterface, true)» val) {
+                static std::map<«fEnumerationType.getElementName(fInterface, true)», std::string> conv_map = {
+                «FOR element : fEnumerationType.enumerators»
+                    {«fEnumerationType.getElementName(fInterface, true)»::«element.name», "«element.name»"},
+                «ENDFOR»
+                };
+
+                auto item = conv_map.find(val);
+                if (item == conv_map.end()) {
+                    throw std::runtime_error("Write: Unexpected enum value : '" + std::to_string(val) + "'");
+                }
+                s << item->second;
+                return s;
+            }
+            «fEnumerationType.model.generateNamespaceEndDeclaration»
+            «(fEnumerationType.eContainer as FTypeCollection).generateVersionNamespaceEnd»
+            #endif // «fEnumerationType.getDefineName(fInterface)»
+        «ENDIF»
     '''
 
     def dispatch extGenerateTypeSerrialization(FUnionType fUnionType, FInterface fInterface) '''
