@@ -66,7 +66,7 @@ class FInterfaceDumpGeneratorExtension {
             #define «fEnumerationType.getDefineName(fInterface)»
             «(fEnumerationType.eContainer as FTypeCollection).generateVersionNamespaceBegin»
             «fEnumerationType.model.generateNamespaceBeginDeclaration»
-            std::istream& operator>> (std::istream& s, «fEnumerationType.getElementName(fInterface, true)» & val) {
+            inline std::istream& operator>> (std::istream& s, «fEnumerationType.getElementName(fInterface, true)» & val) {
                 std::string value;
                 s >> value;
 
@@ -85,7 +85,7 @@ class FInterfaceDumpGeneratorExtension {
                 return s;
             }
 
-            std::ostream& operator<< (std::ostream& s, «fEnumerationType.getElementName(fInterface, true)» val) {
+            inline std::ostream& operator<< (std::ostream& s, «fEnumerationType.getElementName(fInterface, true)» val) {
                 static std::map<«fEnumerationType.getElementName(fInterface, true)», std::string> conv_map = {
                 «FOR element : fEnumerationType.enumerators»
                     {«fEnumerationType.getElementName(fInterface, true)»::«element.name», "«element.name»"},
