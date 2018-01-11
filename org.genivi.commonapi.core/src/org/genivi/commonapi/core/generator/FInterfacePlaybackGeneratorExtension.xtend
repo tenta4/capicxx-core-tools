@@ -30,7 +30,7 @@ class FInterfacePlaybackGeneratorExtension {
 
     def private generateClientMethodCall(FMethod fMethod)
     {
-        var signature = fMethod.inArgs.map['data.m_' + elementName].join(', ')
+        var signature = fMethod.inArgs.map['data.m_data.m_' + elementName].join(', ')
         if (!fMethod.inArgs.empty)
             signature = signature + ', '
 
@@ -40,7 +40,7 @@ class FInterfacePlaybackGeneratorExtension {
             signature = signature + ', _error'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', ' + fMethod.outArgs.map['data.m_' + elementName].join(', ')
+            signature = signature + ', ' + fMethod.outArgs.map['data.m_data.m_' + elementName].join(', ')
 
         //if (!fMethod.fireAndForget) {
         //    signature += ", &_info"
@@ -58,6 +58,8 @@ class FInterfacePlaybackGeneratorExtension {
         «FOR requiredHeaderFile : generatedHeaders.sort»
             #include <«requiredHeaderFile»>
         «ENDFOR»
+
+        #include <«fInterface.serrializationHeaderPath»>
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -95,6 +97,7 @@ class FInterfacePlaybackGeneratorExtension {
             virtual void visit(IVisitor& visitor) = 0;
         };
 
+        // TODO: move this 3 parts to 1 function
         // classes for service's attributes
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
@@ -103,7 +106,7 @@ class FInterfacePlaybackGeneratorExtension {
                 void visit(IVisitor& visitor) override {
                     visitor.visit_«attribute.name»(*this);
                 }
-                «attribute.getTypeName(fInterface, true)» m_data;
+                «attribute.name»DumpType m_data;
             }; // class «attribute.name»Element
 
             «ENDIF»
@@ -116,9 +119,7 @@ class FInterfacePlaybackGeneratorExtension {
                     visitor.visit_«broadcast.name»(*this);
                 }
 
-                «FOR argument : broadcast.outArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
+                «broadcast.name»DumpType m_data;
             }; // class «broadcast.name»Element
 
         «ENDFOR»
@@ -130,15 +131,7 @@ class FInterfacePlaybackGeneratorExtension {
                     visitor.visit_«method.name»(*this);
                 }
 
-                «FOR argument : method.inArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-                «FOR argument : method.outArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-                «IF (method.hasError)»
-                    «method.getErrorNameReference(method.eContainer)» m_error;
-                «ENDIF»
+                «method.name»DumpType m_data;
             }; // class «method.name»Element
 
         «ENDFOR»
@@ -188,7 +181,7 @@ class FInterfacePlaybackGeneratorExtension {
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
             void CServerVisitor::visit_«attribute.name»(«attribute.name»Element& data) {
-                m_transport->fire«attribute.className»Changed(data.m_data);
+                m_transport->fire«attribute.className»Changed(data.m_data.m_data);
                 std::cout << "Server «attribute.name»" << std::endl;
             }
             «ENDIF»
@@ -203,7 +196,7 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDIF»
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
-                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_«argument.name»
+                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_data.m_«argument.name»
                 «ENDFOR»
                 );
                 std::cout << "Server «broadcast.name»" << std::endl;
@@ -263,7 +256,7 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDIF»
                 «method.generateClientMethodCall»;
                 «IF method.hasError»
-                    if (_error != data.m_error)
+                    if (_error != data.m_data.m_error)
                     {
                         std::cout << "Warning : Server response does not match the stored value for «method.name»() call";
                     }
@@ -372,7 +365,7 @@ class FInterfacePlaybackGeneratorExtension {
                         {"«attribute.className»", [this](IVisitor& visitor)
                             {
                                 «attribute.name»Element data_elem;
-                                m_reader.readItem("«attribute.name»", data_elem.m_data);
+                                m_reader.readItem("«attribute.name»", data_elem.m_data.m_data);
                                 «generateNativeInjection(fInterface.name + '_' + attribute.name, 'READ', '//')»
 
                                 visitor.visit_«attribute.name»(data_elem);
@@ -385,7 +378,7 @@ class FInterfacePlaybackGeneratorExtension {
                         {
                             «broadcast.name»Element data_elem;
                             «FOR argument : broadcast.outArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
+                                m_reader.readItem("«argument.name»", data_elem.m_data.m_«argument.name»);
                                 «generateNativeInjection(fInterface.name + '_' + argument.name, 'READ', '//')»
 
                             «ENDFOR»
@@ -398,13 +391,13 @@ class FInterfacePlaybackGeneratorExtension {
                         {
                             «method.name»Element data_elem;
                             «FOR argument : method.inArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
+                                m_reader.readItem("«argument.name»", data_elem.m_data.m_«argument.name»);
                             «ENDFOR»
                             «FOR argument : method.outArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
+                                m_reader.readItem("«argument.name»", data_elem.m_data.m_«argument.name»);
                             «ENDFOR»
                             «IF (method.hasError)»
-                                m_reader.readItem("_error", data_elem.m_error);
+                                m_reader.readItem("_error", data_elem.m_data.m_error);
                             «ENDIF»
                             «generateNativeInjection(fInterface.name + '_' + method.name, 'READ', '//')»
                             visitor.visit_«method.name»(data_elem);

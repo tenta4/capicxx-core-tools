@@ -32,7 +32,7 @@ class FCMakeDumperPlaybackGenerator {
             add_executable(${DUMPER_APP_NAME} ${DUMPER_SOURCES})
 
             target_link_libraries(${DUMPER_APP_NAME}
-                PRIVATE json_serializer
+                PRIVATE data_serializer
                 «generateNativeInjection(fInterface.name, 'DUMPER_LINK_LIBRARIES', '#')»
             )
 
@@ -53,7 +53,7 @@ class FCMakeDumperPlaybackGenerator {
             add_executable(${PLAYBACK_APP_NAME} ${PLAYBACK_SOURCES})
 
             target_link_libraries(${PLAYBACK_APP_NAME}
-                PRIVATE json_serializer
+                PRIVATE data_serializer
                 PRIVATE timeClient
                 «generateNativeInjection(fInterface.name, 'PLAYBACK_LINK_LIBRARIES', '#')»
             )

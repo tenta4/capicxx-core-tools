@@ -1132,18 +1132,18 @@ class FrancaGeneratorExtensions {
     def generateASyncTypedefSignature(FMethod fMethod, boolean argsPresent) {
         var signature = 'const CommonAPI::CallStatus&'
         if (argsPresent)
-            signature = signature + ' cs';
+            signature = signature + ' _cs';
 
         if (fMethod.hasError)
         {
             signature = signature + ', const ' + fMethod.getErrorNameReference(fMethod.eContainer) + '&'
             if (argsPresent)
-                signature = signature + ' error';
+                signature = signature + ' _error';
         }
         if (!fMethod.outArgs.empty)
         {
             if (argsPresent)
-                signature = signature + ', ' + fMethod.outArgs.map['const ' + getTypeName(fMethod, true) + '& ' + elementName].join(', ')
+                signature = signature + ', ' + fMethod.outArgs.map['const ' + getTypeName(fMethod, true) + '& _' + elementName].join(', ')
             else
                 signature = signature + ', ' + fMethod.outArgs.map['const ' + getTypeName(fMethod, true) + '&'].join(', ')
         }
@@ -1152,13 +1152,13 @@ class FrancaGeneratorExtensions {
     }
 
     def generateASyncTypedefAguments(FMethod fMethod) {
-        var signature = 'cs'
+        var signature = '_cs'
 
         if (fMethod.hasError)
-            signature = signature + ', error'
+            signature = signature + ', _error'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', ' + fMethod.outArgs.map[elementName].join(', ')
+            signature = signature + ', _' + fMethod.outArgs.map[elementName].join(', ')
 
         return signature
     }

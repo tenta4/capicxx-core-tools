@@ -5,6 +5,7 @@ import org.eclipse.core.resources.IResource
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 
+// TODO: rename
 class FJsonDumpReader {
     @Inject private extension FrancaGeneratorExtensions
 
@@ -136,7 +137,7 @@ class FJsonDumpReader {
             }
             while (brackets);
 
-            boost::property_tree::read_json(ss, m_curr_pt);
+            boost::property_tree::read_xml(ss, m_curr_pt);
         }
 
         bool JsonDumpReader::readKey(const std::string& src, const std::string& key, std::string& val)
