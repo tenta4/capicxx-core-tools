@@ -476,7 +476,7 @@ class FInterfaceDumpGeneratorExtension {
 
                             // TODO: add mutex?
                             «fAttribute.name»DumpType dump_data{data};
-                            m_writer.write(dump_data, "«fAttribute.name»");
+                            m_writer.write(dump_data, "«fAttribute.name»Attribute");
                         });
                 «ENDFOR»
                 «FOR broadcast : fInterface.broadcasts»
