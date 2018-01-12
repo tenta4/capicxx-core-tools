@@ -319,7 +319,7 @@ class FInterfacePlaybackGeneratorExtension {
         private: // fields
 
             JsonDumpReader m_reader;
-            std::map<std::string, std::function<void(IVisitor&)>> m_readers;
+            std::map<std::string, std::function<void(std::size_t ts_id, IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
             «generateNativeInjection(fInterface.name, 'PLAYBACK_READER_PRIVATE_MEMBERS', '//')»
         private: // methods
@@ -343,12 +343,10 @@ class FInterfacePlaybackGeneratorExtension {
 
             void provideRecord(std::size_t ts_id, IVisitor &visitor)
             {
-                m_reader.jump(ts_id);
-
                 auto func = m_readers.find(m_reader.getRecordName(ts_id));
                 if (func != m_readers.end())
                 {
-                    func->second(visitor);
+                    func->second(ts_id, visitor);
                 }
                 else
                 {
@@ -362,10 +360,10 @@ class FInterfacePlaybackGeneratorExtension {
                 m_readers = {
                 «FOR attribute : fInterface.attributes»
                     «IF attribute.isObservable»
-                        {"«attribute.className»", [this](IVisitor& visitor)
+                        {"«attribute.className»", [this](std::size_t ts_id, IVisitor& visitor)
                             {
                                 «attribute.name»Element data_elem;
-                                m_reader.readItem("«attribute.name»", data_elem.m_data.m_data);
+                                m_reader.read(ts_id, data_elem.m_data);
                                 «generateNativeInjection(fInterface.name + '_' + attribute.name, 'READ', '//')»
 
                                 visitor.visit_«attribute.name»(data_elem);
@@ -374,33 +372,27 @@ class FInterfacePlaybackGeneratorExtension {
                     «ENDIF»
                 «ENDFOR»
                 «FOR broadcast : fInterface.broadcasts»
-                    {"«broadcast.className»", [this](IVisitor& visitor)
+                    {"«broadcast.className»", [this](std::size_t ts_id, IVisitor& visitor)
                         {
                             «broadcast.name»Element data_elem;
-                            «FOR argument : broadcast.outArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_data.m_«argument.name»);
-                                «generateNativeInjection(fInterface.name + '_' + argument.name, 'READ', '//')»
+                            m_reader.read(ts_id, data_elem.m_data);
 
-                            «ENDFOR»
+                            «generateNativeInjection(fInterface.name + '_' + broadcast.name, 'READ', '//')»
+
                             visitor.visit_«broadcast.name»(data_elem);
                         }
                     },
                 «ENDFOR»
                 «FOR method : fInterface.methods»
-                    {"«method.name»", [this](IVisitor& visitor)
+                    {"«method.name»", [this](std::size_t ts_id, IVisitor& visitor)
                         {
                             «method.name»Element data_elem;
-                            «FOR argument : method.inArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_data.m_«argument.name»);
-                            «ENDFOR»
-                            «FOR argument : method.outArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_data.m_«argument.name»);
-                            «ENDFOR»
-                            «IF (method.hasError)»
-                                m_reader.readItem("_error", data_elem.m_data.m_error);
-                            «ENDIF»
+                            m_reader.read(ts_id, data_elem.m_data);
+
                             «generateNativeInjection(fInterface.name + '_' + method.name, 'READ', '//')»
+
                             visitor.visit_«method.name»(data_elem);
+
                             «generateNativeInjection(fInterface.name + '_' + method.name, 'AFTER_SEND', '//')»
                         }
                     },

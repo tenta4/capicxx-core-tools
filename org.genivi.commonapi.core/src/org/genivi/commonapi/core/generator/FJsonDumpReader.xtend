@@ -20,10 +20,11 @@ class FJsonDumpReader {
         {
             std::string m_name;
             std::fstream::pos_type m_pos;
+            std::fstream::pos_type m_end_pos;
         };
 
-        static const std::string s_time_key = "\"time\"";
-        static const std::string s_name_key = "\"name\"";
+        static const std::string s_time_key = "time";
+        static const std::string s_name_key = "name";
 
         class JsonDumpReader
         {
@@ -32,29 +33,39 @@ class FJsonDumpReader {
             const std::vector<int64_t>& getTimestamps() const;
             const std::map<std::string, std::vector<std::size_t>>& getGropedTimestamps() const;
 
-            void jump(std::size_t ts_id);
             const std::string& getRecordName(std::size_t ts_id);
 
             template<class T>
-            void readItem(const std::string& tag, T& res);
+            void read(std::size_t ts_id, T& res);
 
         private:
             bool readKey(const std::string& src, const std::string& key, std::string& val);
-            bool findBracket(const std::string& src, bool is_begin);
 
             std::ifstream m_file;
 
             std::vector<SCall> m_calls;
             std::vector<int64_t> m_timestamps;
             std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
-
-            boost::property_tree::ptree m_curr_pt;
         };
 
         template<class T>
-        void JsonDumpReader::readItem(const std::string& tag, T& res) {
-            boost::property_tree::ptree tmp_pt = m_curr_pt.get_child(tag);
-            DataSerializer::readFromPtree(tmp_pt, res);
+        void JsonDumpReader::read(std::size_t ts_id, T& res)
+        {
+            SCall call = m_calls[ts_id];
+            m_file.seekg(call.m_pos);
+
+            std::string line;
+            std::stringstream ss;
+            while (m_file.tellg() < call.m_end_pos)
+            {
+                std::getline(m_file, line);
+                ss << line << std::endl;
+            }
+
+            if (!DataSerializer::readXmlFromStream(ss, res))
+            {
+                throw std::runtime_error("Failed to read " + call.m_name);
+            }
         }
 
         const std::string& JsonDumpReader::getRecordName(std::size_t ts_id) {
@@ -67,11 +78,6 @@ class FJsonDumpReader {
 
         const std::map<std::string, std::vector<std::size_t>>& JsonDumpReader::getGropedTimestamps() const {
             return m_grouped_timestamps;
-        }
-
-        bool JsonDumpReader::findBracket(const std::string& src, bool is_begin) {
-            const std::string to_find = is_begin ? "{" : "}";
-            return src.find(to_find) != std::string::npos;
         }
 
         JsonDumpReader::JsonDumpReader(const std::string &file_name)
@@ -97,62 +103,49 @@ class FJsonDumpReader {
                     std::string name_val;
                     if (!readKey(line, s_name_key, name_val))
                     {
-                        throw std::runtime_error("something wrong with file structure");
+                        throw std::runtime_error("Something wrong with file structure");
                     }
 
-                    // skip comma separator
+                    // skip </declaration>
                     std::getline(m_file, line);
 
-                    // skip "params" keyword
+                    // skip <params>
                     std::getline(m_file, line);
+
+                    auto begin_pos = m_file.tellg();
+                    decltype(begin_pos) end_pos;
+
+                    do {
+                        end_pos = m_file.tellg();
+                        std::getline(m_file, line);
+                    } while (line.find("</params>", 0) == std::string::npos);
 
                     m_grouped_timestamps[name_val].push_back(m_calls.size());
-
-                    std::fstream::pos_type back_offset = 2;
-                    back_offset = (line.find('{') == std::string::npos) ? std::fstream::pos_type(3)
-                                                                        : back_offset;
-                    // return to "{" symbol
-                    m_calls.push_back({name_val, m_file.tellg() - back_offset});
+                    m_calls.push_back({name_val, begin_pos, end_pos});
                 }
             }
+
+            std::cout << "Found " << m_timestamps.size() << " items" << std::endl;
 
             m_file.close();
             m_file.open(file_name.c_str());
         }
 
-        void JsonDumpReader::jump(std::size_t ts_id)
-        {
-            SCall call = m_calls[ts_id];
-            m_file.seekg(call.m_pos);
-
-            std::string line;
-            std::stringstream ss;
-            int brackets = 0;
-            do
-            {
-                std::getline(m_file, line);
-                brackets += findBracket(line, true);
-                brackets -= findBracket(line, false);
-                ss << line << std::endl;
-            }
-            while (brackets);
-
-            boost::property_tree::read_xml(ss, m_curr_pt);
-        }
-
         bool JsonDumpReader::readKey(const std::string& src, const std::string& key, std::string& val)
         {
-            const std::size_t key_len = key.length();
-            const std::size_t key_begin_pos = src.find(key.c_str(), key_len);
+            const std::string begin_tag = "<" + key + ">";
+            const std::string close_tag = "</" + key + ">";
+
+            const std::size_t key_begin_pos = src.find(begin_tag.c_str(), 0);
             if (key_begin_pos == std::string::npos)
             {
                 return false;
             }
 
-            const std::size_t key_end_pos = key_begin_pos + key_len;
-            const std::size_t val_begin_pos = src.find("\"", key_end_pos) + 1;
-            const std::size_t val_end_pos = src.find("\"", val_begin_pos);
-            val = src.substr(val_begin_pos, val_end_pos - val_begin_pos);
+            const std::size_t key_end_pos = key_begin_pos + begin_tag.length();
+            const std::size_t val_end_pos = src.find(close_tag, key_end_pos);
+
+            val = src.substr(key_end_pos, val_end_pos - key_end_pos);
             return true;
         }
 

@@ -1158,7 +1158,7 @@ class FrancaGeneratorExtensions {
             signature = signature + ', _error'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', _' + fMethod.outArgs.map[elementName].join(', ')
+            signature = signature + ', ' + fMethod.outArgs.map['_' + elementName].join(', ')
 
         return signature
     }

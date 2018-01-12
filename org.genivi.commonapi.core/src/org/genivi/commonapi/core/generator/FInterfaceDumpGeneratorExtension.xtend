@@ -486,11 +486,10 @@ class FInterfaceDumpGeneratorExtension {
                             «IF !first»,«ENDIF»«{first = false; ""}» const «argument.getTypeName(argument, true)»& «argument.name»
                         «ENDFOR»
                         ) {
+                            «generateNativeInjection(fInterface.name + '_' + broadcast.name, 'WRITE', '//')»
+
                             // TODO: add mutex?
-                            «FOR argument : broadcast.outArgs»
-                                «generateNativeInjection(fInterface.name + '_' + argument.name, 'WRITE', '//')»
-                            «ENDFOR»
-                            «first = true»
+                            «{first = true; ""}»
                             «broadcast.name»DumpType dump_data{
                             «FOR argument : broadcast.outArgs»
                                 «IF !first»,«ENDIF»«{first = false; ""}» «argument.name»
@@ -548,7 +547,7 @@ class FInterfaceDumpGeneratorExtension {
 
                     «method.asyncCallbackClassName» cb_wrapper = [=](«method.generateASyncTypedefSignature(true)»)
                     {
-                        std::cout << "callback getRoute ASYNC" << std::endl;
+                        std::cout << "callback «method.name» ASYNC" << std::endl;
                         _callback(«method.generateASyncTypedefAguments»);
 
                         «var boolean first = true»
