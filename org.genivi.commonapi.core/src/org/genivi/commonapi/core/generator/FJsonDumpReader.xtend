@@ -62,17 +62,17 @@ class FJsonDumpReader {
             std::string line;
             while (std::getline(m_file, line))
             {
-                if (isContainsTag(line, "declaration"))
+                if (isContainsTag(line, s_header_tag))
                 {
                     std::stringstream ss;
                     while (std::getline(m_file, line)) {
-                        if (isContainsTag(line, "declaration", true)) {
+                        if (isContainsTag(line, s_header_tag, true)) {
                             break;
                         }
                         ss << line;
                     }
 
-                    SCommandPerceptionEngine cmd;
+                    «fInterface.dumperCommandTypeName» cmd;
                     DataSerializer::readXmlFromStream(ss, cmd);
 
                     // skip <params>
@@ -84,7 +84,7 @@ class FJsonDumpReader {
                     do {
                         end_pos = m_file.tellg();
                     } while (std::getline(m_file, line)
-                          && !isContainsTag(line, "params", true));
+                          && !isContainsTag(line, s_content_tag, true));
 
                     m_timestamps.push_back(cmd.time);
                     m_grouped_timestamps[cmd.name].push_back(m_calls.size());
@@ -97,7 +97,7 @@ class FJsonDumpReader {
             m_file.close();
             m_file.open(file_name.c_str());
         }
-        
+
         template<class T>
         void JsonDumpReader::read(std::size_t ts_id, T& res)
         {

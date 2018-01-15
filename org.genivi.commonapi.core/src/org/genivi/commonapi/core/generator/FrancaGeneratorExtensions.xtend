@@ -480,6 +480,12 @@ class FrancaGeneratorExtensions {
         'CMakeLists.txt'
     }
 
+    def getDumperCommandTypeName(FInterface fInterface) '''
+        SCommand«fInterface.name»'''
+
+    def getDumperVersionTypeName(FInterface fInterface) '''
+        SVersion«fInterface.name»'''
+
     def getSerrializationHeaderPath(FInterface fInterface) {
         fInterface.versionPathPrefix + fInterface.model.directoryPath + '/' + fInterface.serrializationFile
     }

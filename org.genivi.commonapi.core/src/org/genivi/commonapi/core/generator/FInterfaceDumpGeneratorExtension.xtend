@@ -240,36 +240,36 @@ class FInterfaceDumpGeneratorExtension {
 
         «fInterface.generateDumpTypesSerialization»
 
-        struct «fInterface.extCommandTypeName()» {
+        struct «fInterface.dumperCommandTypeName» {
             int64_t time;
             std::string name;
         };
 
-        struct «fInterface.extVersionTypeName()» {
+        struct «fInterface.dumperVersionTypeName» {
             uint32_t major;
             uint32_t minor;
         };
 
         ADAPT_NAMED_ATTRS_ADT(
-        «fInterface.extCommandTypeName()»,
+        «fInterface.dumperCommandTypeName»,
         ("time", time)
         ("name", name),
         SIMPLE_ACCESS)
 
         ADAPT_NAMED_ATTRS_ADT(
-        «fInterface.extVersionTypeName()»,
+        «fInterface.dumperVersionTypeName»,
         ("major", major)
         ("minor", minor),
         SIMPLE_ACCESS)
 
+        const char* s_version_tag = "version";
+        const char* s_header_tag = "header";
+        const char* s_content_tag = "content";
+        const char* s_queries_tag = "queries";
+        const char* s_array_item_tag = "item";
+
         #endif // «fInterface.defineName»_SERRIALIZATION_HPP_
     '''
-
-    def private extCommandTypeName(FInterface fInterface) '''
-        SCommand«fInterface.name»'''
-
-    def private extVersionTypeName(FInterface fInterface) '''
-        SVersion«fInterface.name»'''
 
     def private generateDumpTypes(FInterface fInterface) '''
         «fInterface.generateVersionNamespaceBegin»
@@ -410,23 +410,23 @@ class FInterfaceDumpGeneratorExtension {
                 }
 
                 {
-                    CTagPrinter tag(m_stream, "version");
-                    «fInterface.extVersionTypeName()» version{«fInterface.version.major», «fInterface.version.minor»};
+                    CTagPrinter tag(m_stream, s_version_tag);
+                    «fInterface.dumperVersionTypeName» version{«fInterface.version.major», «fInterface.version.minor»};
                     DataSerializer::writeXmlToStream(m_stream, version, true, false);
                 }
 
-                CTagPrinter::open(m_stream, "queries");
+                CTagPrinter::open(m_stream, s_queries_tag);
             }
 
             ~«fInterface.proxyDumpWriterClassName»()
             {
-                CTagPrinter::close(m_stream, "queries");
+                CTagPrinter::close(m_stream, s_queries_tag);
             }
 
             template<class T>
             void write(const T& var, const std::string& name)
             {
-                CTagPrinter tag(m_stream, "item");
+                CTagPrinter tag(m_stream, s_array_item_tag);
                 int64_t us;
                 if (m_is_system_time) {
                     us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -435,11 +435,11 @@ class FInterfaceDumpGeneratorExtension {
                     us = m_time.getCurrentTime();
                 }
                 {
-                    CTagPrinter tag(m_stream, "declaration");
-                    DataSerializer::writeXmlToStream(m_stream, «fInterface.extCommandTypeName()»{us, name}, true, false);
+                    CTagPrinter tag(m_stream, s_header_tag);
+                    DataSerializer::writeXmlToStream(m_stream, «fInterface.dumperCommandTypeName»{us, name}, true, false);
                 }
                 {
-                    CTagPrinter tag(m_stream, "params");
+                    CTagPrinter tag(m_stream, s_content_tag);
                     DataSerializer::writeXmlToStream(m_stream, var, true, false);
                 }
             }
@@ -579,6 +579,10 @@ class FInterfaceDumpGeneratorExtension {
             «ENDIF»
         «ENDFOR»
 
+        /* This is a slightly strange way to pass is_system_time flag.
+         * It's necessary because there is no possibility to extend parameters list
+         * for Proxy. It hardcoded in CommonAPI::Runtime::buildProxy method.
+         */
         template <typename ..._AttributeExtensions>
         class «fInterface.proxyDumpWrapperClassName»_SystemTime :
                 public «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>
