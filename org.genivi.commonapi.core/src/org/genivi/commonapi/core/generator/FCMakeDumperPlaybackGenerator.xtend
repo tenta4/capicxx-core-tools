@@ -33,6 +33,7 @@ class FCMakeDumperPlaybackGenerator {
 
             target_link_libraries(${DUMPER_APP_NAME}
                 PRIVATE data_serializer
+                PRIVATE timeServer
                 «generateNativeInjection(fInterface.name, 'DUMPER_LINK_LIBRARIES', '#')»
             )
 

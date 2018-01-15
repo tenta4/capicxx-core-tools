@@ -365,6 +365,8 @@ class FInterfaceDumpGeneratorExtension {
 
         #include <fstream>
 
+        #include <timeService/CTimeServer.hpp>
+
         #include <«fInterface.proxyDumpWrapperHeaderPath»>
         #include <«fInterface.serrializationHeaderPath»>
 
@@ -398,7 +400,8 @@ class FInterfaceDumpGeneratorExtension {
         class «fInterface.proxyDumpWriterClassName»
         {
         public:
-            «fInterface.proxyDumpWriterClassName»(const std::string& file_name)
+            «fInterface.proxyDumpWriterClassName»(const std::string& file_name, bool is_system_time)
+                : m_is_system_time(is_system_time)
             {
                 m_stream.open(file_name.c_str());
                 if (!m_stream.is_open())
@@ -424,9 +427,13 @@ class FInterfaceDumpGeneratorExtension {
             void write(const T& var, const std::string& name)
             {
                 CTagPrinter tag(m_stream, "item");
-                int64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
-
+                int64_t us;
+                if (m_is_system_time) {
+                    us = std::chrono::duration_cast<std::chrono::microseconds>(
+                       std::chrono::system_clock::now().time_since_epoch()).count();
+                } else {
+                    us = m_time.getCurrentTime();
+                }
                 {
                     CTagPrinter tag(m_stream, "declaration");
                     DataSerializer::writeXmlToStream(m_stream, «fInterface.extCommandTypeName()»{us, name}, true, false);
@@ -439,6 +446,8 @@ class FInterfaceDumpGeneratorExtension {
 
         private:
             std::ofstream m_stream;
+            TimeService::CTimeServer m_time;
+            bool m_is_system_time;
         };
     '''
 
@@ -462,9 +471,9 @@ class FInterfaceDumpGeneratorExtension {
             «ENDFOR»
             «generateNativeInjection(fInterface.name, 'DUMPER_PRIVATE_MEMBERS', '//')»
         public:
-            «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
+            «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate, bool system_time = false)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
-                , m_writer("«fInterface.name»_dump.xml")
+                , m_writer("«fInterface.name»_dump.xml", system_time)
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
 
@@ -570,6 +579,18 @@ class FInterfaceDumpGeneratorExtension {
             «ENDIF»
         «ENDFOR»
 
+        template <typename ..._AttributeExtensions>
+        class «fInterface.proxyDumpWrapperClassName»_SystemTime :
+                public «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>
+        {
+        public:
+            «fInterface.proxyDumpWrapperClassName»_SystemTime(std::shared_ptr<CommonAPI::Proxy> delegate)
+                : «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>(delegate, true){}
+        };
+
+        template <typename ..._AttributeExtensions>
+        using «fInterface.proxyDumpWrapperClassName»_TimeService = «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>;
+
         «fInterface.model.generateNamespaceEndDeclaration»
         «fInterface.generateVersionNamespaceEnd»
     '''
@@ -583,32 +604,32 @@ class FInterfaceDumpGeneratorExtension {
 
         #include <«fInterface.proxyDumpWrapperHeaderPath»>
 
-        template<template<typename ...> class T>
-        class TCommonWrapper
+        class DumpProxyFactory
         {
         public:
-        TCommonWrapper(const std::string& domain, const std::string& instance, uint32_t retry_count)
-        {
-            std::shared_ptr <CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
-            m_proxy = runtime->buildProxy<T>(domain.c_str(), instance.c_str());
-            if (!m_proxy)
+            template<template<typename ...> class T> static
+            std::shared_ptr<T<>> create(const std::string& domain, const std::string& instance, uint32_t retry_count)
             {
-                throw std::runtime_error(instance + " : failed to create ");
-            }
+                std::shared_ptr <CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
+                auto m_proxy = runtime->buildProxy<T>(domain.c_str(), instance.c_str());
+                if (!m_proxy)
+                {
+                    throw std::runtime_error(instance + " : failed to create ");
+                }
 
-            while (retry_count && !m_proxy->isAvailable())
-            {
-                retry_count--;
-                std::cout << std::endl << instance << " : try co connect " << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
+                while (retry_count && !m_proxy->isAvailable())
+                {
+                    retry_count--;
+                    std::cout << std::endl << instance << " : try co connect " << std::endl;
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
 
-            if (!retry_count) {
-                throw std::runtime_error(instance + " : service is not available");
+                if (!retry_count) {
+                    throw std::runtime_error(instance + " : service is not available");
+                }
+
+                return m_proxy;
             }
-        }
-        protected:
-            std::shared_ptr<T<>> m_proxy;
         };
 
         std::atomic<bool> done(false);
@@ -620,19 +641,27 @@ class FInterfaceDumpGeneratorExtension {
         {
             «fInterface.generateNamespaceUsage»
 
+            // TODO: rewrite to program options
             if (argc < 2) {
-                std::cout << "Input service name please" << std::endl;
+                std::cout << "Format <service name> "
+                          << "[systemTime/timeService (default timeService)]"
+                          << std::endl;
                 return 0;
             }
-
             std::string service_name = argv[1];
             std::cout << "Service name: " << service_name << std::endl;
 
             signal(SIGINT, signalHandler);
 
-            typedef TCommonWrapper<«fInterface.proxyDumpWrapperClassName»> ProxyDumpWraper;
-            std::shared_ptr<ProxyDumpWraper> perception_proxy = std::make_shared<ProxyDumpWraper>(
+            std::shared_ptr<«fInterface.proxyDumpWrapperClassName»<>> perception_proxy;
+            if (argc > 2 && std::string("systemTime") == argv[2])
+            {
+                perception_proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_SystemTime>(
                         "local", service_name, 5);
+            } else {
+                perception_proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_TimeService>(
+                        "local", service_name, 5);
+            }
 
             while (!done) {
                 sleep(1);
