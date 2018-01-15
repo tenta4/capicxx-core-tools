@@ -6,7 +6,7 @@ import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 
 // TODO: rename
-class FJsonDumpReader {
+class FXmlDumpReader {
     @Inject private extension FrancaGeneratorExtensions
 
     def generateDumpReader(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
@@ -26,10 +26,10 @@ class FJsonDumpReader {
         static const std::string s_time_key = "time";
         static const std::string s_name_key = "name";
 
-        class JsonDumpReader
+        class XmlDumpReader
         {
         public:
-            JsonDumpReader(const std::string& file_name);
+            XmlDumpReader(const std::string& file_name);
             const std::vector<int64_t>& getTimestamps() const;
             const std::map<std::string, std::vector<std::size_t>>& getGropedTimestamps() const;
 
@@ -48,7 +48,7 @@ class FJsonDumpReader {
             std::map<std::string, std::vector<std::size_t>> m_grouped_timestamps;
         };
 
-        JsonDumpReader::JsonDumpReader(const std::string &file_name)
+        XmlDumpReader::XmlDumpReader(const std::string &file_name)
         {
             m_file.open(file_name.c_str());
 
@@ -99,7 +99,7 @@ class FJsonDumpReader {
         }
 
         template<class T>
-        void JsonDumpReader::read(std::size_t ts_id, T& res)
+        void XmlDumpReader::read(std::size_t ts_id, T& res)
         {
             SCall call = m_calls[ts_id];
             m_file.seekg(call.m_pos);
@@ -120,19 +120,19 @@ class FJsonDumpReader {
             }
         }
 
-        const std::string& JsonDumpReader::getRecordName(std::size_t ts_id) {
+        const std::string& XmlDumpReader::getRecordName(std::size_t ts_id) {
             return m_calls.at(ts_id).m_name;
         }
 
-        const std::vector<int64_t>& JsonDumpReader::getTimestamps() const {
+        const std::vector<int64_t>& XmlDumpReader::getTimestamps() const {
             return m_timestamps;
         }
 
-        const std::map<std::string, std::vector<std::size_t>>& JsonDumpReader::getGropedTimestamps() const {
+        const std::map<std::string, std::vector<std::size_t>>& XmlDumpReader::getGropedTimestamps() const {
             return m_grouped_timestamps;
         }
 
-        bool JsonDumpReader::isContainsTag(const std::string& src, const std::string& key, bool is_closed)
+        bool XmlDumpReader::isContainsTag(const std::string& src, const std::string& key, bool is_closed)
         {
             return src.find(std::string("<") + (is_closed ? "/" : "") + key + ">", 0) != std::string::npos;
         }

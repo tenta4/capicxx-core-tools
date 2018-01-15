@@ -453,7 +453,7 @@ class FrancaGeneratorExtensions {
     }
 
     def getDumpReaderHeaderFile(FInterface fInterface) {
-        'JsonDumpReader.hpp'
+        'XmlDumpReader.hpp'
     }
 
     def getIVisitorFile(FInterface fInterface) {

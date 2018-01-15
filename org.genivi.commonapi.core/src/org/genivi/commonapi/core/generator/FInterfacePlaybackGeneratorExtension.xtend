@@ -15,7 +15,7 @@ class FInterfacePlaybackGeneratorExtension {
     @Inject private extension FTypeGenerator
     @Inject private extension FrancaGeneratorExtensions
     @Inject private extension FNativeInjections
-    @Inject private extension FJsonDumpReader
+    @Inject private extension FXmlDumpReader
 
     def generatePlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
@@ -318,7 +318,7 @@ class FInterfacePlaybackGeneratorExtension {
             }
         private: // fields
 
-            JsonDumpReader m_reader;
+            XmlDumpReader m_reader;
             std::map<std::string, std::function<void(std::size_t ts_id, IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
             «generateNativeInjection(fInterface.name, 'PLAYBACK_READER_PRIVATE_MEMBERS', '//')»
