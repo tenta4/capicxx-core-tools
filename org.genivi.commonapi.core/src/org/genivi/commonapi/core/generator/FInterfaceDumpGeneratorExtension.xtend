@@ -478,33 +478,33 @@ class FInterfaceDumpGeneratorExtension {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
 
                 «FOR fAttribute : fInterface.attributes»
+                    m_subscribe_«fAttribute.name» =
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
                             «generateNativeInjection(fInterface.name + '_' + fAttribute.name, 'WRITE', '//')»
 
-                            // TODO: add mutex?
                             «fAttribute.name»DumpType dump_data{data};
                             m_writer.write(dump_data, "«fAttribute.name»Attribute");
                         });
                 «ENDFOR»
-                «FOR broadcast : fInterface.broadcasts»
-                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«broadcast.className»().subscribe([this](
+                «FOR fBroadcast : fInterface.broadcasts»
+                    m_subscribe_«fBroadcast.name» =
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«fBroadcast.className»().subscribe([this](
                         «var boolean first = true»
-                        «FOR argument : broadcast.outArgs»
+                        «FOR argument : fBroadcast.outArgs»
                             «IF !first»,«ENDIF»«{first = false; ""}» const «argument.getTypeName(argument, true)»& «argument.name»
                         «ENDFOR»
                         ) {
-                            «generateNativeInjection(fInterface.name + '_' + broadcast.name, 'WRITE', '//')»
+                            «generateNativeInjection(fInterface.name + '_' + fBroadcast.name, 'WRITE', '//')»
 
-                            // TODO: add mutex?
                             «{first = true; ""}»
-                            «broadcast.name»DumpType dump_data{
-                            «FOR argument : broadcast.outArgs»
+                            «fBroadcast.name»DumpType dump_data{
+                            «FOR argument : fBroadcast.outArgs»
                                 «IF !first»,«ENDIF»«{first = false; ""}» «argument.name»
                             «ENDFOR»
                             };
-                            m_writer.write(dump_data, "«broadcast.name»");
+                            m_writer.write(dump_data, "«fBroadcast.name»");
                         });
                 «ENDFOR»
             }
@@ -520,8 +520,27 @@ class FInterfaceDumpGeneratorExtension {
                 «ENDIF»
             «ENDFOR»
 
+            ~«fInterface.proxyDumpWrapperClassName»()
+            {
+                «FOR fAttribute : fInterface.attributes»
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
+                        getChangedEvent().unsubscribe(m_subscribe_«fAttribute.name»);
+                «ENDFOR»
+                «FOR fBroadcast : fInterface.broadcasts»
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«fBroadcast.className»().
+                        unsubscribe(m_subscribe_«fBroadcast.name»);
+                «ENDFOR»
+            }
+
         private:
             «fInterface.proxyDumpWriterClassName» m_writer;
+
+            «FOR fAttribute : fInterface.attributes»
+                CommonAPI::Event<«fAttribute.getTypeName(fInterface, true)»>::Subscription m_subscribe_«fAttribute.name»;
+            «ENDFOR»
+            «FOR fBroadcast : fInterface.broadcasts»
+                CommonAPI::Event<«fBroadcast.outArgs.map[getTypeName(fInterface, true)].join(', ')»>::Subscription m_subscribe_«fBroadcast.name»;
+            «ENDFOR»
         };
 
         «FOR method : fInterface.methods»
