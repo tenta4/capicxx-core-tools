@@ -5,7 +5,6 @@ import org.eclipse.core.resources.IResource
 import org.franca.core.franca.FInterface
 import org.genivi.commonapi.core.deployment.PropertyAccessor
 
-// TODO: rename
 class FXmlDumpReader {
     @Inject private extension FrancaGeneratorExtensions
 

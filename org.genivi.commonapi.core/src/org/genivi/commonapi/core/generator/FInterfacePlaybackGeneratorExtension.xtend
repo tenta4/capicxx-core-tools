@@ -48,6 +48,16 @@ class FInterfacePlaybackGeneratorExtension {
         return 'm_transport->' + fMethod.name + '(' + signature + ')'
     }
 
+    def private defineVisitorElement(String name) '''
+        struct «name»Element : public IElement
+        {
+            void visit(IVisitor& visitor) override {
+                visitor.visit_«name»(*this);
+            }
+            «name»DumpType m_data;
+        }; // class «name»Element
+    '''
+
     def private generateIVisitor(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #pragma once
 
@@ -97,42 +107,21 @@ class FInterfacePlaybackGeneratorExtension {
             virtual void visit(IVisitor& visitor) = 0;
         };
 
-        // TODO: move this 3 parts to 1 function
         // classes for service's attributes
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
-            struct «attribute.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«attribute.name»(*this);
-                }
-                «attribute.name»DumpType m_data;
-            }; // class «attribute.name»Element
+            «defineVisitorElement(attribute.name)»
 
             «ENDIF»
         «ENDFOR»
         // classes for service's broadcasts
         «FOR broadcast : fInterface.broadcasts»
-            struct «broadcast.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«broadcast.name»(*this);
-                }
-
-                «broadcast.name»DumpType m_data;
-            }; // class «broadcast.name»Element
+            «defineVisitorElement(broadcast.name)»
 
         «ENDFOR»
         // classes for service's methods
         «FOR method : fInterface.methods»
-            struct «method.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«method.name»(*this);
-                }
-
-                «method.name»DumpType m_data;
-            }; // class «method.name»Element
+            «defineVisitorElement(method.name)»
 
         «ENDFOR»
 
