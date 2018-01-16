@@ -366,7 +366,7 @@ class FInterfaceDumpGeneratorExtension {
 
         #include <fstream>
 
-        #include <timeService/CTimeServer.hpp>
+        #include <timeService/CTimeBase.hpp>
 
         #include <«fInterface.proxyDumpWrapperHeaderPath»>
         #include <«fInterface.serrializationHeaderPath»>
@@ -447,7 +447,7 @@ class FInterfaceDumpGeneratorExtension {
 
         private:
             std::ofstream m_stream;
-            TimeService::CTimeServer m_time;
+            TimeService::CTimeBase m_time;
             bool m_is_system_time;
         };
     '''
