@@ -262,11 +262,12 @@ class FInterfaceDumpGeneratorExtension {
         ("minor", minor),
         SIMPLE_ACCESS)
 
-        const char* s_version_tag = "version";
-        const char* s_header_tag = "header";
-        const char* s_content_tag = "content";
-        const char* s_queries_tag = "queries";
-        const char* s_array_item_tag = "item";
+        // TODO: move this as constans into future cpp-file
+        #define s_version_tag "version"
+        #define s_header_tag "header"
+        #define s_content_tag "content"
+        #define s_queries_tag "queries"
+        #define s_array_item_tag "item"
 
         #endif // «fInterface.defineName»_SERRIALIZATION_HPP_
     '''
