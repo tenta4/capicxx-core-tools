@@ -381,21 +381,6 @@ class FInterfaceDumpGeneratorExtension {
             static void close(std::ofstream& stream, const char* name) {
                 stream << "</" << name << ">" << std::endl;
             }
-
-            CTagPrinter(std::ofstream& stream, const char* name)
-                : m_stream(stream)
-                , m_name(name)
-            {
-                open(m_stream, m_name.c_str());
-            }
-
-            ~CTagPrinter() {
-                close(m_stream, m_name.c_str());
-            }
-
-        private:
-            std::ofstream& m_stream;
-            const std::string m_name;
         };
 
         class «fInterface.proxyDumpWriterClassName»
@@ -424,7 +409,8 @@ class FInterfaceDumpGeneratorExtension {
             template<class T>
             void write(const T& var, const std::string& name)
             {
-                CTagPrinter tag(m_stream, s_array_item_tag);
+                std::lock_guard<std::mutex> guard(m_write_mutex);
+                CTagPrinter::open(m_stream, s_array_item_tag);
                 int64_t us;
                 if (m_is_system_time) {
                     us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -434,10 +420,13 @@ class FInterfaceDumpGeneratorExtension {
                 }
                 DataSerializer::writeXmlToStream(m_stream, «fInterface.dumperCommandTypeName»{us, name}, s_header_tag, true, false);
                 DataSerializer::writeXmlToStream(m_stream, var, s_content_tag, true, false);
+                CTagPrinter::close(m_stream, s_array_item_tag);
             }
 
         private:
             std::ofstream m_stream;
+            std::mutex m_write_mutex;
+
             TimeService::CTimeBase m_time;
             bool m_is_system_time;
         };
@@ -453,6 +442,15 @@ class FInterfaceDumpGeneratorExtension {
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
 
+        class «fInterface.name»WorkersCounter
+        {
+        public:
+            «fInterface.name»WorkersCounter(std::atomic<unsigned>& in) : m_counter(in) { ++m_counter; }
+            ~«fInterface.name»WorkersCounter() { --m_counter;}
+        private:
+            std::atomic<unsigned>& m_counter;
+        };
+
         template <typename ..._AttributeExtensions>
         class «fInterface.proxyDumpWrapperClassName» : public «fInterface.proxyClassName»<_AttributeExtensions...>
         {
@@ -466,6 +464,7 @@ class FInterfaceDumpGeneratorExtension {
             «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate, bool system_time = false)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
                 , m_writer("«fInterface.name»_dump.xml", system_time)
+                , m_workers_count(0)
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
 
@@ -474,6 +473,8 @@ class FInterfaceDumpGeneratorExtension {
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
+                            «fInterface.name»WorkersCounter auto_count(m_workers_count);
+
                             «generateNativeInjection(fInterface.name + '_' + fAttribute.name, 'WRITE', '//')»
 
                             «fAttribute.name»DumpType dump_data{data};
@@ -488,6 +489,8 @@ class FInterfaceDumpGeneratorExtension {
                             «IF !first»,«ENDIF»«{first = false; ""}» const «argument.getTypeName(argument, true)»& «argument.name»
                         «ENDFOR»
                         ) {
+                            «fInterface.name»WorkersCounter auto_count(m_workers_count);
+
                             «generateNativeInjection(fInterface.name + '_' + fBroadcast.name, 'WRITE', '//')»
 
                             «{first = true; ""}»
@@ -522,17 +525,22 @@ class FInterfaceDumpGeneratorExtension {
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fBroadcast.className»().
                         unsubscribe(m_subscribe_«fBroadcast.name»);
                 «ENDFOR»
+
+                while (m_workers_count > 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
             }
 
         private:
-            «fInterface.proxyDumpWriterClassName» m_writer;
-
             «FOR fAttribute : fInterface.attributes»
                 CommonAPI::Event<«fAttribute.getTypeName(fInterface, true)»>::Subscription m_subscribe_«fAttribute.name»;
             «ENDFOR»
             «FOR fBroadcast : fInterface.broadcasts»
                 CommonAPI::Event<«fBroadcast.outArgs.map[getTypeName(fInterface, true)].join(', ')»>::Subscription m_subscribe_«fBroadcast.name»;
             «ENDFOR»
+
+            «fInterface.proxyDumpWriterClassName» m_writer;
+            std::atomic<unsigned> m_workers_count;
         };
 
         «FOR method : fInterface.methods»
@@ -668,13 +676,13 @@ class FInterfaceDumpGeneratorExtension {
 
             signal(SIGINT, signalHandler);
 
-            std::shared_ptr<«fInterface.proxyDumpWrapperClassName»<>> perception_proxy;
+            std::shared_ptr<«fInterface.proxyDumpWrapperClassName»<>> proxy;
             if (argc > 2 && std::string("systemTime") == argv[2])
             {
-                perception_proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_SystemTime>(
+                proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_SystemTime>(
                         "local", service_name, 5);
             } else {
-                perception_proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_TimeService>(
+                proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_TimeService>(
                         "local", service_name, 5);
             }
 
