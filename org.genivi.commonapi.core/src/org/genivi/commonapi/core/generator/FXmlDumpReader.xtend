@@ -64,26 +64,24 @@ class FXmlDumpReader {
                 if (isContainsTag(line, s_header_tag))
                 {
                     std::stringstream ss;
-                    while (std::getline(m_file, line)) {
-                        if (isContainsTag(line, s_header_tag, true)) {
-                            break;
-                        }
+                    do {
                         ss << line;
-                    }
+                    } while (!isContainsTag(line, s_header_tag, true)
+                          && std::getline(m_file, line));
 
                     «fInterface.dumperCommandTypeName» cmd;
-                    DataSerializer::readXmlFromStream(ss, cmd);
-
-                    // skip <params>
-                    std::getline(m_file, line);
+                    if (!DataSerializer::readXmlFromStream(ss, cmd))
+                    {
+                        throw std::runtime_error("Failed to read header from xml");
+                    }
 
                     auto begin_pos = m_file.tellg();
                     decltype(begin_pos) end_pos;
 
                     do {
                         end_pos = m_file.tellg();
-                    } while (std::getline(m_file, line)
-                          && !isContainsTag(line, s_content_tag, true));
+                    } while (!isContainsTag(line, s_content_tag, true)
+                             && std::getline(m_file, line));
 
                     m_timestamps.push_back(cmd.time);
                     m_grouped_timestamps[cmd.name].push_back(m_calls.size());
@@ -91,7 +89,8 @@ class FXmlDumpReader {
                 }
             }
 
-            std::cout << "Found " << m_timestamps.size() << " items" << std::endl;
+            std::cout << std::endl << "Found " << m_timestamps.size()
+                      << " items" << std::endl;
 
             m_file.close();
             m_file.open(file_name.c_str());

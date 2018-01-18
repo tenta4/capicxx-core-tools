@@ -410,11 +410,8 @@ class FInterfaceDumpGeneratorExtension {
                     throw std::runtime_error("Failed to open file '" + file_name + "'");
                 }
 
-                {
-                    CTagPrinter tag(m_stream, s_version_tag);
-                    «fInterface.dumperVersionTypeName» version{«fInterface.version.major», «fInterface.version.minor»};
-                    DataSerializer::writeXmlToStream(m_stream, version, true, false);
-                }
+                «fInterface.dumperVersionTypeName» version{«fInterface.version.major», «fInterface.version.minor»};
+                DataSerializer::writeXmlToStream(m_stream, version, s_version_tag, true, false);
 
                 CTagPrinter::open(m_stream, s_queries_tag);
             }
@@ -435,14 +432,8 @@ class FInterfaceDumpGeneratorExtension {
                 } else {
                     us = m_time.getCurrentTime();
                 }
-                {
-                    CTagPrinter tag(m_stream, s_header_tag);
-                    DataSerializer::writeXmlToStream(m_stream, «fInterface.dumperCommandTypeName»{us, name}, true, false);
-                }
-                {
-                    CTagPrinter tag(m_stream, s_content_tag);
-                    DataSerializer::writeXmlToStream(m_stream, var, true, false);
-                }
+                DataSerializer::writeXmlToStream(m_stream, «fInterface.dumperCommandTypeName»{us, name}, s_header_tag, true, false);
+                DataSerializer::writeXmlToStream(m_stream, var, s_content_tag, true, false);
             }
 
         private:
