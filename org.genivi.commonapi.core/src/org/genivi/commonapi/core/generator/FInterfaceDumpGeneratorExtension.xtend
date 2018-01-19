@@ -115,7 +115,7 @@ class FInterfaceDumpGeneratorExtension {
         DEFINE_BOOST_VARIANT(
         , Boost«fUnionType.name»,
         «FOR fField : fUnionType.elements»
-            («fField.getTypeName(fInterface, true)»)
+            («fField.getTypeName(fInterface, true)», "T-«fField.getTypeName(fInterface, true).replace(':', '-')»")
         «ENDFOR»
         )
         #endif // BOOST«fUnionType.getDefineName(fInterface)»
@@ -211,6 +211,8 @@ class FInterfaceDumpGeneratorExtension {
             #include <«requiredHeaderFile»>
         «ENDFOR»
 
+        «fInterface.generateDumpTypes»
+
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
                 «extGenerateSerrializationMain(attribute.type, fInterface)»
@@ -236,49 +238,156 @@ class FInterfaceDumpGeneratorExtension {
             «ENDIF»
         «ENDFOR»
 
+        «fInterface.generateDumpTypesSerialization»
+
+        struct «fInterface.dumperCommandTypeName» {
+            int64_t time;
+            std::string name;
+        };
+
+        struct «fInterface.dumperVersionTypeName» {
+            uint32_t major;
+            uint32_t minor;
+        };
+
+        ADAPT_NAMED_ATTRS_ADT(
+        «fInterface.dumperCommandTypeName»,
+        ("time", time)
+        ("name", name),
+        SIMPLE_ACCESS)
+
+        ADAPT_NAMED_ATTRS_ADT(
+        «fInterface.dumperVersionTypeName»,
+        ("major", major)
+        ("minor", minor),
+        SIMPLE_ACCESS)
+
+        // TODO: move this as constans into future cpp-file
+        #define s_version_tag "version"
+        #define s_header_tag "header"
+        #define s_content_tag "content"
+        #define s_queries_tag "queries"
+        #define s_array_item_tag "item"
+
         #endif // «fInterface.defineName»_SERRIALIZATION_HPP_
     '''
 
-    def private extCommandTypeName(FInterface fInterface) '''
-        SCommand«fInterface.name»'''
+    def private generateDumpTypes(FInterface fInterface) '''
+        «fInterface.generateVersionNamespaceBegin»
+        «fInterface.model.generateNamespaceBeginDeclaration»
 
-    def private extVersionTypeName(FInterface fInterface) '''
-        SVersion«fInterface.name»'''
+        // classes for service's attributes
+        «FOR attribute : fInterface.attributes»
+            «IF attribute.isObservable»
+            struct «attribute.name»DumpType
+            {
+                «attribute.getTypeName(fInterface, true)» m_data;
+            }; // class «attribute.name»DumpType
+
+            «ENDIF»
+        «ENDFOR»
+
+        // classes for service's broadcasts
+        «FOR broadcast : fInterface.broadcasts»
+            struct «broadcast.name»DumpType
+            {
+                «FOR argument : broadcast.outArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+            }; // class «broadcast.name»DumpType
+
+        «ENDFOR»
+
+        // classes for service's methods
+        «FOR method : fInterface.methods»
+            struct «method.name»DumpType
+            {
+                «FOR argument : method.inArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+                «FOR argument : method.outArgs»
+                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
+                «ENDFOR»
+                «IF (method.hasError)»
+                    «method.getErrorNameReference(method.eContainer)» m_error;
+                «ENDIF»
+            }; // class «method.name»DumpType
+
+        «ENDFOR»
+
+        «fInterface.model.generateNamespaceEndDeclaration»
+        «fInterface.generateVersionNamespaceEnd»
+
+    '''
+
+    def private generateDumpTypesSerialization(FInterface fInterface) '''
+        // adapts for service's attributes
+        «FOR attribute : fInterface.attributes»
+            «IF attribute.isObservable»
+                ADAPT_NAMED_ATTRS_ADT(
+                «fInterface.versionPrefix»«fInterface.model.generateCppNamespace»«attribute.name»DumpType,
+                ("m_data", m_data)
+                , SIMPLE_ACCESS)
+
+            «ENDIF»
+        «ENDFOR»
+
+        // adapts for service's broadcasts
+        «FOR broadcast : fInterface.broadcasts»
+            ADAPT_NAMED_ATTRS_ADT(
+            «fInterface.versionPrefix»«fInterface.model.generateCppNamespace»«broadcast.name»DumpType,
+            «FOR argument : broadcast.outArgs»
+                ("m_«argument.name»", m_«argument.name»)
+            «ENDFOR»
+            , SIMPLE_ACCESS)
+
+        «ENDFOR»
+
+        // adapts for service's methods
+        «FOR method : fInterface.methods»
+            ADAPT_NAMED_ATTRS_ADT(
+            «fInterface.versionPrefix»«fInterface.model.generateCppNamespace»«method.name»DumpType,
+            «FOR argument : method.inArgs»
+                ("m_«argument.name»", m_«argument.name»)
+            «ENDFOR»
+            «FOR argument : method.outArgs»
+                ("m_«argument.name»", m_«argument.name»)
+            «ENDFOR»
+            «IF (method.hasError)»
+                ("m_error", m_error)
+            «ENDIF»
+            , SIMPLE_ACCESS)
+
+        «ENDFOR»
+    '''
 
     def private extGenerateDumpClientWriter(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #pragma once
 
         #include <fstream>
 
+        #include <timeService/CTimeBase.hpp>
+
         #include <«fInterface.proxyDumpWrapperHeaderPath»>
         #include <«fInterface.serrializationHeaderPath»>
 
-        struct «fInterface.extCommandTypeName()» {
-            int64_t time;
-            std::string name;
+        class CTagPrinter
+        {
+        public:
+            static void open(std::ofstream& stream, const char* name)  {
+                stream << "<" << name << ">" << std::endl;
+            }
+
+            static void close(std::ofstream& stream, const char* name) {
+                stream << "</" << name << ">" << std::endl;
+            }
         };
-
-        struct «fInterface.extVersionTypeName()» {
-            uint32_t major;
-            uint32_t minor;
-        };
-
-        ADAPT_NAMED_ATTRS_ADT(
-        «fInterface.extCommandTypeName()»,
-        ("time", time)
-        ("name", name),
-        SIMPLE_ACCESS)
-
-        ADAPT_NAMED_ATTRS_ADT(
-        «fInterface.extVersionTypeName()»,
-        ("major", major)
-        ("minor", minor),
-        SIMPLE_ACCESS)
 
         class «fInterface.proxyDumpWriterClassName»
         {
         public:
-            «fInterface.proxyDumpWriterClassName»(const std::string& file_name)
+            «fInterface.proxyDumpWriterClassName»(const std::string& file_name, bool is_system_time)
+                : m_is_system_time(is_system_time)
             {
                 m_stream.open(file_name.c_str());
                 if (!m_stream.is_open())
@@ -286,63 +395,40 @@ class FInterfaceDumpGeneratorExtension {
                     throw std::runtime_error("Failed to open file '" + file_name + "'");
                 }
 
-                boost::property_tree::ptree child_ptree;
+                «fInterface.dumperVersionTypeName» version{«fInterface.version.major», «fInterface.version.minor»};
+                DataSerializer::writeXmlToStream(m_stream, version, s_version_tag, true, false);
 
-                «fInterface.extVersionTypeName()» version{«fInterface.version.major», «fInterface.version.minor»};
-                DataSerializer::Private::TPtreeSerializer<«fInterface.extVersionTypeName()»>::write(version, child_ptree);
-
-                m_stream << "{\n\"" << "version" << "\": ";
-                boost::property_tree::write_json(m_stream, child_ptree);
-                m_stream << ",\"queries\": [\n";
+                CTagPrinter::open(m_stream, s_queries_tag);
             }
 
             ~«fInterface.proxyDumpWriterClassName»()
             {
-                finishQuery(true);
-                m_stream << "]\n}";
-            }
-
-            void beginQuery(const std::string& name)
-            {
-                if (!m_current_ptree.empty())
-                {
-                    finishQuery();
-                }
-
-                int64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
-
-                boost::property_tree::ptree child_ptree;
-                DataSerializer::Private::TPtreeSerializer<«fInterface.extCommandTypeName()»>::write({us, name}, child_ptree);
-
-                m_current_ptree.add_child("declaration", child_ptree);
-                child_ptree.clear();
-
-                m_current_ptree.add_child("params", child_ptree);
+                CTagPrinter::close(m_stream, s_queries_tag);
             }
 
             template<class T>
-            void adjustQuery(const T& var, const std::string& name)
+            void write(const T& var, const std::string& name)
             {
-                boost::property_tree::ptree& data_ptree = m_current_ptree.get_child("params");
-                boost::property_tree::ptree child_ptree;
-                DataSerializer::Private::TPtreeSerializer<T>::write(var, child_ptree);
-                data_ptree.add_child(name, child_ptree);
-            }
-
-            void finishQuery(bool last = false)
-            {
-                boost::property_tree::write_json(m_stream, m_current_ptree);
-                if (!last)
-                {
-                    m_stream << ",";
+                std::lock_guard<std::mutex> guard(m_write_mutex);
+                CTagPrinter::open(m_stream, s_array_item_tag);
+                int64_t us;
+                if (m_is_system_time) {
+                    us = std::chrono::duration_cast<std::chrono::microseconds>(
+                       std::chrono::system_clock::now().time_since_epoch()).count();
+                } else {
+                    us = m_time.getCurrentTime();
                 }
-                m_current_ptree.clear();
+                DataSerializer::writeXmlToStream(m_stream, «fInterface.dumperCommandTypeName»{us, name}, s_header_tag, true, false);
+                DataSerializer::writeXmlToStream(m_stream, var, s_content_tag, true, false);
+                CTagPrinter::close(m_stream, s_array_item_tag);
             }
 
         private:
             std::ofstream m_stream;
-            boost::property_tree::ptree m_current_ptree;
+            std::mutex m_write_mutex;
+
+            TimeService::CTimeBase m_time;
+            bool m_is_system_time;
         };
     '''
 
@@ -356,6 +442,15 @@ class FInterfaceDumpGeneratorExtension {
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
 
+        class «fInterface.name»WorkersCounter
+        {
+        public:
+            «fInterface.name»WorkersCounter(std::atomic<unsigned>& in) : m_counter(in) { ++m_counter; }
+            ~«fInterface.name»WorkersCounter() { --m_counter;}
+        private:
+            std::atomic<unsigned>& m_counter;
+        };
+
         template <typename ..._AttributeExtensions>
         class «fInterface.proxyDumpWrapperClassName» : public «fInterface.proxyClassName»<_AttributeExtensions...>
         {
@@ -366,36 +461,45 @@ class FInterfaceDumpGeneratorExtension {
             «ENDFOR»
             «generateNativeInjection(fInterface.name, 'DUMPER_PRIVATE_MEMBERS', '//')»
         public:
-            «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate)
+            «fInterface.proxyDumpWrapperClassName»(std::shared_ptr<CommonAPI::Proxy> delegate, bool system_time = false)
                 : «fInterface.proxyClassName»<_AttributeExtensions...>(delegate)
-                , m_writer("«fInterface.name»_dump.json")
+                , m_writer("«fInterface.name»_dump.xml", system_time)
+                , m_workers_count(0)
             {
                 std::cout << "Version : «fInterface.version.major».«fInterface.version.minor»" << std::endl;
 
                 «FOR fAttribute : fInterface.attributes»
+                    m_subscribe_«fAttribute.name» =
                     «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
                         getChangedEvent().subscribe([this](const «fAttribute.getTypeName(fInterface, true)»& data)
                         {
+                            «fInterface.name»WorkersCounter auto_count(m_workers_count);
+
                             «generateNativeInjection(fInterface.name + '_' + fAttribute.name, 'WRITE', '//')»
 
-                            // TODO: add mutex?
-                            m_writer.beginQuery("«fAttribute.className»");
-                            m_writer.adjustQuery(data, "«fAttribute.name»");
+                            «fAttribute.name»DumpType dump_data{data};
+                            m_writer.write(dump_data, "«fAttribute.name»Attribute");
                         });
                 «ENDFOR»
-                «FOR broadcast : fInterface.broadcasts»
-                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«broadcast.className»().subscribe([this](
+                «FOR fBroadcast : fInterface.broadcasts»
+                    m_subscribe_«fBroadcast.name» =
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«fBroadcast.className»().subscribe([this](
                         «var boolean first = true»
-                        «FOR argument : broadcast.outArgs»
+                        «FOR argument : fBroadcast.outArgs»
                             «IF !first»,«ENDIF»«{first = false; ""}» const «argument.getTypeName(argument, true)»& «argument.name»
                         «ENDFOR»
                         ) {
-                            // TODO: add mutex?
-                            m_writer.beginQuery("«broadcast.className»");
-                            «FOR argument : broadcast.outArgs»
-                                «generateNativeInjection(fInterface.name + '_' + argument.name, 'WRITE', '//')»
-                                m_writer.adjustQuery(«argument.name», "«argument.name»");
+                            «fInterface.name»WorkersCounter auto_count(m_workers_count);
+
+                            «generateNativeInjection(fInterface.name + '_' + fBroadcast.name, 'WRITE', '//')»
+
+                            «{first = true; ""}»
+                            «fBroadcast.name»DumpType dump_data{
+                            «FOR argument : fBroadcast.outArgs»
+                                «IF !first»,«ENDIF»«{first = false; ""}» «argument.name»
                             «ENDFOR»
+                            };
+                            m_writer.write(dump_data, "«fBroadcast.name»");
                         });
                 «ENDFOR»
             }
@@ -411,8 +515,32 @@ class FInterfaceDumpGeneratorExtension {
                 «ENDIF»
             «ENDFOR»
 
+            ~«fInterface.proxyDumpWrapperClassName»()
+            {
+                «FOR fAttribute : fInterface.attributes»
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«fAttribute.className»().
+                        getChangedEvent().unsubscribe(m_subscribe_«fAttribute.name»);
+                «ENDFOR»
+                «FOR fBroadcast : fInterface.broadcasts»
+                    «fInterface.proxyClassName»<_AttributeExtensions...>::get«fBroadcast.className»().
+                        unsubscribe(m_subscribe_«fBroadcast.name»);
+                «ENDFOR»
+
+                while (m_workers_count > 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+
         private:
+            «FOR fAttribute : fInterface.attributes»
+                CommonAPI::Event<«fAttribute.getTypeName(fInterface, true)»>::Subscription m_subscribe_«fAttribute.name»;
+            «ENDFOR»
+            «FOR fBroadcast : fInterface.broadcasts»
+                CommonAPI::Event<«fBroadcast.outArgs.map[getTypeName(fInterface, true)].join(', ')»>::Subscription m_subscribe_«fBroadcast.name»;
+            «ENDFOR»
+
             «fInterface.proxyDumpWriterClassName» m_writer;
+            std::atomic<unsigned> m_workers_count;
         };
 
         «FOR method : fInterface.methods»
@@ -423,16 +551,20 @@ class FInterfaceDumpGeneratorExtension {
                 «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»(
                     «method.generateMethodArgumentList»
                 );
-                m_writer.beginQuery("«method.name»");
-                «FOR argument : method.inArgs»
-                    m_writer.adjustQuery(_«argument.name», "«argument.name»");
-                «ENDFOR»
-                «FOR argument : method.outArgs»
-                    m_writer.adjustQuery(_«argument.name», "«argument.name»");
-                «ENDFOR»
-                «IF (method.hasError)»
-                    m_writer.adjustQuery(_error, "_error");
-                «ENDIF»
+
+                «var boolean first = true»
+                «method.name»DumpType dump_data{
+                    «FOR argument : method.inArgs»
+                        «IF !first»,«ENDIF»«{first = false; ""}» _«argument.elementName»
+                    «ENDFOR»
+                    «FOR argument : method.outArgs»
+                        «IF !first»,«ENDIF»«{first = false; ""}» _«argument.elementName»
+                    «ENDFOR»
+                    «IF (method.hasError)»
+                        «IF !first»,«ENDIF»«{first = false; ""}» _error
+                    «ENDIF»
+                };
+                m_writer.write(dump_data, "«method.name»");
             }
 
             «ENDIF»
@@ -443,25 +575,44 @@ class FInterfaceDumpGeneratorExtension {
 
                     «method.asyncCallbackClassName» cb_wrapper = [=](«method.generateASyncTypedefSignature(true)»)
                     {
-                        std::cout << "callback getRoute ASYNC" << std::endl;
+                        std::cout << "callback «method.name» ASYNC" << std::endl;
                         _callback(«method.generateASyncTypedefAguments»);
 
-                        m_writer.beginQuery("«method.elementName»Async");
-                        «FOR arg : method.inArgs»
-                            m_writer.adjustQuery(_«arg.name», "«arg.name»");
-                        «ENDFOR»
-                        «FOR arg : method.outArgs»
-                            m_writer.adjustQuery(«arg.name», "«arg.name»");
-                        «ENDFOR»
-                        «IF (method.hasError)»
-                            m_writer.adjustQuery(error, "_error");
-                        «ENDIF»
+                        «var boolean first = true»
+                        «method.name»DumpType dump_data{
+                            «FOR argument : method.inArgs»
+                                «IF !first»,«ENDIF»«{first = false; ""}» _«argument.elementName»
+                            «ENDFOR»
+                            «FOR argument : method.outArgs»
+                                «IF !first»,«ENDIF»«{first = false; ""}» _«argument.elementName»
+                            «ENDFOR»
+                            «IF (method.hasError)»
+                                «IF !first»,«ENDIF»«{first = false; ""}» _error
+                            «ENDIF»
+                        };
+                        m_writer.write(dump_data, "«method.name»");
                     };
 
                     return «fInterface.proxyClassName»<_AttributeExtensions...>::«method.name»Async(«method.generateAsyncMethodArguments»);
                 }
             «ENDIF»
         «ENDFOR»
+
+        /* This is a slightly strange way to pass is_system_time flag.
+         * It's necessary because there is no possibility to extend parameters list
+         * for Proxy. It hardcoded in CommonAPI::Runtime::buildProxy method.
+         */
+        template <typename ..._AttributeExtensions>
+        class «fInterface.proxyDumpWrapperClassName»_SystemTime :
+                public «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>
+        {
+        public:
+            «fInterface.proxyDumpWrapperClassName»_SystemTime(std::shared_ptr<CommonAPI::Proxy> delegate)
+                : «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>(delegate, true){}
+        };
+
+        template <typename ..._AttributeExtensions>
+        using «fInterface.proxyDumpWrapperClassName»_TimeService = «fInterface.proxyDumpWrapperClassName»<_AttributeExtensions...>;
 
         «fInterface.model.generateNamespaceEndDeclaration»
         «fInterface.generateVersionNamespaceEnd»
@@ -476,35 +627,33 @@ class FInterfaceDumpGeneratorExtension {
 
         #include <«fInterface.proxyDumpWrapperHeaderPath»>
 
-        template<template<typename ...> class T>
-        class TCommonWrapper
+        class DumpProxyFactory
         {
         public:
-        TCommonWrapper(const std::string& domain, const std::string& instance, uint32_t retry_count)
-        {
-            std::shared_ptr <CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
-            m_proxy = runtime->buildProxy<T>(domain.c_str(), instance.c_str());
-            if (!m_proxy)
+            template<template<typename ...> class T> static
+            std::shared_ptr<T<>> create(const std::string& domain, const std::string& instance, uint32_t retry_count)
             {
-                throw std::runtime_error(instance + " : failed to create ");
-            }
+                std::shared_ptr <CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
+                auto m_proxy = runtime->buildProxy<T>(domain.c_str(), instance.c_str());
+                if (!m_proxy)
+                {
+                    throw std::runtime_error(instance + " : failed to create ");
+                }
 
-            while (retry_count && !m_proxy->isAvailable())
-            {
-                retry_count--;
-                std::cout << std::endl << instance << " : try co connect " << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
+                while (retry_count && !m_proxy->isAvailable())
+                {
+                    retry_count--;
+                    std::cout << std::endl << instance << " : try co connect " << std::endl;
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
 
-            if (!retry_count) {
-                throw std::runtime_error(instance + " : service is not available");
+                if (!retry_count) {
+                    throw std::runtime_error(instance + " : service is not available");
+                }
+
+                return m_proxy;
             }
-        }
-        protected:
-            std::shared_ptr<T<>> m_proxy;
         };
-
-        «fInterface.generateNamespaceUsage»
 
         std::atomic<bool> done(false);
         void signalHandler(int signum) {
@@ -515,19 +664,27 @@ class FInterfaceDumpGeneratorExtension {
         {
             «fInterface.generateNamespaceUsage»
 
+            // TODO: rewrite to program options
             if (argc < 2) {
-                std::cout << "Input service name please" << std::endl;
+                std::cout << "Format <service name> "
+                          << "[systemTime/timeService (default timeService)]"
+                          << std::endl;
                 return 0;
             }
-
             std::string service_name = argv[1];
             std::cout << "Service name: " << service_name << std::endl;
 
             signal(SIGINT, signalHandler);
 
-            typedef TCommonWrapper<«fInterface.proxyDumpWrapperClassName»> ProxyDumpWraper;
-            std::shared_ptr<ProxyDumpWraper> perception_proxy = std::make_shared<ProxyDumpWraper>(
+            std::shared_ptr<«fInterface.proxyDumpWrapperClassName»<>> proxy;
+            if (argc > 2 && std::string("systemTime") == argv[2])
+            {
+                proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_SystemTime>(
                         "local", service_name, 5);
+            } else {
+                proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_TimeService>(
+                        "local", service_name, 5);
+            }
 
             while (!done) {
                 sleep(1);

@@ -15,7 +15,7 @@ class FInterfacePlaybackGeneratorExtension {
     @Inject private extension FTypeGenerator
     @Inject private extension FrancaGeneratorExtensions
     @Inject private extension FNativeInjections
-    @Inject private extension FJsonDumpReader
+    @Inject private extension FXmlDumpReader
 
     def generatePlayback(FInterface fInterface, IFileSystemAccess fileSystemAccess, PropertyAccessor deploymentAccessor, IResource modelid) {
 
@@ -30,7 +30,7 @@ class FInterfacePlaybackGeneratorExtension {
 
     def private generateClientMethodCall(FMethod fMethod)
     {
-        var signature = fMethod.inArgs.map['data.m_' + elementName].join(', ')
+        var signature = fMethod.inArgs.map['data.m_data.m_' + elementName].join(', ')
         if (!fMethod.inArgs.empty)
             signature = signature + ', '
 
@@ -40,13 +40,23 @@ class FInterfacePlaybackGeneratorExtension {
             signature = signature + ', _error'
 
         if (!fMethod.outArgs.empty)
-            signature = signature + ', ' + fMethod.outArgs.map['data.m_' + elementName].join(', ')
+            signature = signature + ', ' + fMethod.outArgs.map['data.m_data.m_' + elementName].join(', ')
 
         //if (!fMethod.fireAndForget) {
         //    signature += ", &_info"
         //}
         return 'm_transport->' + fMethod.name + '(' + signature + ')'
     }
+
+    def private defineVisitorElement(String name) '''
+        struct «name»Element : public IElement
+        {
+            void visit(IVisitor& visitor) override {
+                visitor.visit_«name»(*this);
+            }
+            «name»DumpType m_data;
+        }; // class «name»Element
+    '''
 
     def private generateIVisitor(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #pragma once
@@ -58,6 +68,8 @@ class FInterfacePlaybackGeneratorExtension {
         «FOR requiredHeaderFile : generatedHeaders.sort»
             #include <«requiredHeaderFile»>
         «ENDFOR»
+
+        #include <«fInterface.serrializationHeaderPath»>
 
         «fInterface.generateVersionNamespaceBegin»
         «fInterface.model.generateNamespaceBeginDeclaration»
@@ -98,48 +110,18 @@ class FInterfacePlaybackGeneratorExtension {
         // classes for service's attributes
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
-            struct «attribute.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«attribute.name»(*this);
-                }
-                «attribute.getTypeName(fInterface, true)» m_data;
-            }; // class «attribute.name»Element
+            «defineVisitorElement(attribute.name)»
 
             «ENDIF»
         «ENDFOR»
         // classes for service's broadcasts
         «FOR broadcast : fInterface.broadcasts»
-            struct «broadcast.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«broadcast.name»(*this);
-                }
-
-                «FOR argument : broadcast.outArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-            }; // class «broadcast.name»Element
+            «defineVisitorElement(broadcast.name)»
 
         «ENDFOR»
         // classes for service's methods
         «FOR method : fInterface.methods»
-            struct «method.name»Element : public IElement
-            {
-                void visit(IVisitor& visitor) override {
-                    visitor.visit_«method.name»(*this);
-                }
-
-                «FOR argument : method.inArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-                «FOR argument : method.outArgs»
-                    «argument.getTypeName(fInterface, true)» m_«argument.name»;
-                «ENDFOR»
-                «IF (method.hasError)»
-                    «method.getErrorNameReference(method.eContainer)» m_error;
-                «ENDIF»
-            }; // class «method.name»Element
+            «defineVisitorElement(method.name)»
 
         «ENDFOR»
 
@@ -188,7 +170,7 @@ class FInterfacePlaybackGeneratorExtension {
         «FOR attribute : fInterface.attributes»
             «IF attribute.isObservable»
             void CServerVisitor::visit_«attribute.name»(«attribute.name»Element& data) {
-                m_transport->fire«attribute.className»Changed(data.m_data);
+                m_transport->fire«attribute.className»Changed(data.m_data.m_data);
                 std::cout << "Server «attribute.name»" << std::endl;
             }
             «ENDIF»
@@ -203,7 +185,7 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDIF»
                 «var boolean first = true»
                 «FOR argument : broadcast.outArgs»
-                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_«argument.name»
+                    «IF !first»,«ENDIF»«{first = false; ""}» data.m_data.m_«argument.name»
                 «ENDFOR»
                 );
                 std::cout << "Server «broadcast.name»" << std::endl;
@@ -263,7 +245,7 @@ class FInterfacePlaybackGeneratorExtension {
                 «ENDIF»
                 «method.generateClientMethodCall»;
                 «IF method.hasError»
-                    if (_error != data.m_error)
+                    if (_error != data.m_data.m_error)
                     {
                         std::cout << "Warning : Server response does not match the stored value for «method.name»() call";
                     }
@@ -325,8 +307,8 @@ class FInterfacePlaybackGeneratorExtension {
             }
         private: // fields
 
-            JsonDumpReader m_reader;
-            std::map<std::string, std::function<void(IVisitor&)>> m_readers;
+            XmlDumpReader m_reader;
+            std::map<std::string, std::function<void(std::size_t ts_id, IVisitor&)>> m_readers;
             std::size_t m_curr_ts;
             «generateNativeInjection(fInterface.name, 'PLAYBACK_READER_PRIVATE_MEMBERS', '//')»
         private: // methods
@@ -350,12 +332,10 @@ class FInterfacePlaybackGeneratorExtension {
 
             void provideRecord(std::size_t ts_id, IVisitor &visitor)
             {
-                m_reader.jump(ts_id);
-
                 auto func = m_readers.find(m_reader.getRecordName(ts_id));
                 if (func != m_readers.end())
                 {
-                    func->second(visitor);
+                    func->second(ts_id, visitor);
                 }
                 else
                 {
@@ -369,10 +349,10 @@ class FInterfacePlaybackGeneratorExtension {
                 m_readers = {
                 «FOR attribute : fInterface.attributes»
                     «IF attribute.isObservable»
-                        {"«attribute.className»", [this](IVisitor& visitor)
+                        {"«attribute.className»", [this](std::size_t ts_id, IVisitor& visitor)
                             {
                                 «attribute.name»Element data_elem;
-                                m_reader.readItem("«attribute.name»", data_elem.m_data);
+                                m_reader.read(ts_id, data_elem.m_data);
                                 «generateNativeInjection(fInterface.name + '_' + attribute.name, 'READ', '//')»
 
                                 visitor.visit_«attribute.name»(data_elem);
@@ -381,33 +361,27 @@ class FInterfacePlaybackGeneratorExtension {
                     «ENDIF»
                 «ENDFOR»
                 «FOR broadcast : fInterface.broadcasts»
-                    {"«broadcast.className»", [this](IVisitor& visitor)
+                    {"«broadcast.className»", [this](std::size_t ts_id, IVisitor& visitor)
                         {
                             «broadcast.name»Element data_elem;
-                            «FOR argument : broadcast.outArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                                «generateNativeInjection(fInterface.name + '_' + argument.name, 'READ', '//')»
+                            m_reader.read(ts_id, data_elem.m_data);
 
-                            «ENDFOR»
+                            «generateNativeInjection(fInterface.name + '_' + broadcast.name, 'READ', '//')»
+
                             visitor.visit_«broadcast.name»(data_elem);
                         }
                     },
                 «ENDFOR»
                 «FOR method : fInterface.methods»
-                    {"«method.name»", [this](IVisitor& visitor)
+                    {"«method.name»", [this](std::size_t ts_id, IVisitor& visitor)
                         {
                             «method.name»Element data_elem;
-                            «FOR argument : method.inArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                            «ENDFOR»
-                            «FOR argument : method.outArgs»
-                                m_reader.readItem("«argument.name»", data_elem.m_«argument.name»);
-                            «ENDFOR»
-                            «IF (method.hasError)»
-                                m_reader.readItem("_error", data_elem.m_error);
-                            «ENDIF»
+                            m_reader.read(ts_id, data_elem.m_data);
+
                             «generateNativeInjection(fInterface.name + '_' + method.name, 'READ', '//')»
+
                             visitor.visit_«method.name»(data_elem);
+
                             «generateNativeInjection(fInterface.name + '_' + method.name, 'AFTER_SEND', '//')»
                         }
                     },
