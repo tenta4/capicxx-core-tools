@@ -61,14 +61,6 @@ class FInterfacePlaybackGeneratorExtension {
     def private generateIVisitor(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
         #pragma once
 
-        «val generatedHeaders = new HashSet<String>»
-        «val libraryHeaders = new HashSet<String>»
-        «fInterface.generateRequiredTypeIncludes(generatedHeaders, libraryHeaders, false)»
-
-        «FOR requiredHeaderFile : generatedHeaders.sort»
-            #include <«requiredHeaderFile»>
-        «ENDFOR»
-
         #include <«fInterface.serrializationHeaderPath»>
 
         «fInterface.generateVersionNamespaceBegin»
