@@ -166,6 +166,9 @@ class FInterfaceDumpGeneratorExtension {
 
     def dispatch extGenerateTypeSerrialization(FStructType fStructType, FInterface fInterface) '''
         «IF usedTypes.add(fStructType)»
+            «IF (fStructType.base != null)»
+                «extGenerateTypeSerrialization(fStructType.base, fInterface)»
+            «ENDIF»
             «FOR fField : fStructType.elements»
                 «extGenerateSerrializationMain(fField.type, fInterface)»
             «ENDFOR»
@@ -368,7 +371,6 @@ class FInterfaceDumpGeneratorExtension {
 
         #include <timeService/CTimeBase.hpp>
 
-        #include <«fInterface.proxyDumpWrapperHeaderPath»>
         #include <«fInterface.serrializationHeaderPath»>
 
         class CTagPrinter
