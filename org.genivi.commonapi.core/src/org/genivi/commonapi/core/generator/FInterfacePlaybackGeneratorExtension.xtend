@@ -389,6 +389,7 @@ class FInterfacePlaybackGeneratorExtension {
 
     def private generatePlaybackMain(FInterface fInterface, PropertyAccessor deploymentAccessor, IResource modelid) '''
 
+        #include <boost/program_options.hpp>
         #include <CommonAPI/CommonAPI.hpp>
         #include <timeService/CTimeClient.hpp>
 
@@ -399,7 +400,7 @@ class FInterfacePlaybackGeneratorExtension {
         class TimeProvider
         {
         public:
-            TimeProvider(std::vector<int64_t> timestamps, bool is_sys_time = true)
+            TimeProvider(const std::vector<int64_t>& timestamps, bool is_sys_time = true)
                 : m_timestamps(timestamps)
                 , m_current_ts(m_timestamps.size())
                 , m_time_client(TimeService::CTimeClient(timestamps))
@@ -445,55 +446,68 @@ class FInterfacePlaybackGeneratorExtension {
 
         int main(int argc, char** argv)
         {
+            namespace po = boost::program_options;
             «fInterface.generateNamespaceUsage»
 
-            // TODO: catch SIGINT
+            std::string dump_filename = "«fInterface.name»_dump.xml";
 
-            if (argc < 3)
-            {
-                std::cout << "Format: filename serviceName [server/client(default: server)]"
-                          << "[timeService/sysTime(default timeService)]" << std::endl;
+            const std::string domain = "local";
+            std::string service_name;
+
+            bool client_mode = false;
+            bool system_mode = false;
+
+            po::options_description desc("Allowed options");
+            desc.add_options()
+                    ("help,h", "print usage message")
+                    ("dump_file,d", po::value<std::string>(&dump_filename)->default_value(dump_filename), "full pathname for dump file")
+                    ("service_name,s", po::value<std::string>(&service_name)->required(), "connection instance name")
+                    ("client_mode,c", po::value<bool>(&client_mode)->default_value(client_mode), "work in client mode; by default app plays only server events")
+                    ("system_time,t", po::value<bool>(&system_mode)->default_value(system_mode), "work without TimeService synchronization");
+
+
+            try {
+                po::variables_map vm;
+                po::store(po::parse_command_line(argc, argv, desc), vm);
+                if (vm.count("help")) {
+                    std::cout << desc << std::endl;
+                    return 0;
+                }
+                po::notify(vm);
+            } catch(std::exception& e) {
+                std::cerr << e.what() << std::endl;
+                std::cerr << desc << std::endl;
                 return 0;
             }
 
-            bool is_server = argc > 3 && argv[3] == std::string("client") ? false : true;
-            bool is_sys_time = argc > 4 && argv[4] == std::string("sysTime") ? true : false;
-            const std::string domain = "local";
-            const std::string instance = argv[2];
-            uint32_t retry_count = 5;
-
             std::shared_ptr<CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
-            CDataProvider provider(argv[1]);
+            CDataProvider provider(dump_filename);
             IVisitor* visitor;
 
-            if (is_server)
+            if (!client_mode)
             {
                 auto service = std::make_shared<«fInterface.stubDefaultClassName»>();
-                runtime->registerService(domain, instance, service);
+                runtime->registerService(domain, service_name, service);
                 std::cout << "Successfully Registered Service!" << std::endl;
 
                 visitor = new CServerVisitor(service);
             }
             else
             {
-                auto proxy = runtime->buildProxy<«fInterface.proxyClassName»>(domain.c_str(), instance.c_str());
+                auto proxy = runtime->buildProxy<«fInterface.proxyClassName»>(domain.c_str(), service_name.c_str());
                 if (!proxy) {
-                    throw std::runtime_error(instance + " : failed to create ");
+                    throw std::runtime_error(service_name + " : failed to create ");
                 }
 
-                while (retry_count && !proxy->isAvailable()) {
-                    retry_count--;
-                    std::cout << std::endl << instance << " : try co connect " << std::endl;
+                while (!proxy->isAvailable()) {
+                    std::cout << std::endl << service_name << " : try co connect " << std::endl;
                     std::this_thread::sleep_for(std::chrono::seconds(1));
                 }
 
-                if (!retry_count) {
-                    throw std::runtime_error(instance + " : service is not available");
-                }
                 visitor = new CClientVisitor(proxy);
             }
 
-            TimeProvider time_provider(provider.getTimestamps(), is_sys_time);
+            TimeProvider time_provider(provider.getTimestamps(), system_mode);
             while (1)
             {
                 std::size_t idx = time_provider.waitForNexTimestamp();
