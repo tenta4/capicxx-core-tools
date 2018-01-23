@@ -396,6 +396,53 @@ class FInterfacePlaybackGeneratorExtension {
         #include "«fInterface.serverVisitorFile»"
         #include "«fInterface.clientVisitorFile»"
 
+        class TimeProvider
+        {
+        public:
+            TimeProvider(std::vector<int64_t> timestamps, bool is_sys_time = true)
+                : m_timestamps(timestamps)
+                , m_current_ts(m_timestamps.size())
+                , m_time_client(TimeService::CTimeClient(timestamps))
+            {
+                m_wait_function = is_sys_time ?
+                    std::function<std::size_t()>([this]() {
+                        if (++m_current_ts >= m_timestamps.size()) {
+                            m_current_ts = 0;
+                            m_delta_time = getSystemTimestamp() - m_timestamps.front();
+                        }
+
+                        int64_t sleep_time = m_timestamps.at(m_current_ts) +
+                            m_delta_time - getSystemTimestamp();
+
+                        std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
+                        return m_current_ts;
+                    }) :
+                    std::function<std::size_t()>([this]() {
+                        int64_t res = -1;
+                        while ((res = m_time_client.waitForNexTimestamp()) < 0);
+                        return static_cast<std::size_t>(res);
+                    });
+            }
+
+            std::size_t waitForNexTimestamp() {
+                return m_wait_function();
+            }
+
+            static int64_t getSystemTimestamp() {
+                return std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+            }
+
+        private:
+            std::vector<int64_t> m_timestamps;
+            std::function<std::size_t()> m_wait_function;
+
+            std::size_t m_current_ts;
+            int64_t m_delta_time;
+
+            TimeService::CTimeClient m_time_client;
+        };
+
         int main(int argc, char** argv)
         {
             «fInterface.generateNamespaceUsage»
@@ -404,11 +451,13 @@ class FInterfacePlaybackGeneratorExtension {
 
             if (argc < 3)
             {
-                std::cout << "Format: filename serviceName [server/client(default: server)]\n";
+                std::cout << "Format: filename serviceName [server/client(default: server)]"
+                          << "[timeService/sysTime(default timeService)]" << std::endl;
                 return 0;
             }
 
             bool is_server = argc > 3 && argv[3] == std::string("client") ? false : true;
+            bool is_sys_time = argc > 4 && argv[4] == std::string("sysTime") ? true : false;
             const std::string domain = "local";
             const std::string instance = argv[2];
             uint32_t retry_count = 5;
@@ -444,10 +493,10 @@ class FInterfacePlaybackGeneratorExtension {
                 visitor = new CClientVisitor(proxy);
             }
 
-            TimeService::CTimeClient time_client(provider.getTimestamps());
+            TimeProvider time_provider(provider.getTimestamps(), is_sys_time);
             while (1)
             {
-                std::size_t idx = static_cast<std::size_t>(time_client.waitForNexTimestamp());
+                std::size_t idx = time_provider.waitForNexTimestamp();
                 provider.provide(idx, *visitor);
             }
             return 0;
