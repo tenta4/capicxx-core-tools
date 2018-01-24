@@ -23,6 +23,16 @@ class FNativeInjections {
         return value
     }
 
+    def boolean isOptionContainsText(String path, String tag, String text)
+    {
+        var String option_value = optionValue(path, tag);
+        if (option_value.indexOf(text) >= 0)
+        {
+            return true;
+        }
+        return false;
+    }
+
     def String generateNativeInjection(String path, String tag, String comment_sym)
     {
         val String comment = comment_sym + ' Native injection ' + tag + ' : '
@@ -83,6 +93,7 @@ class FNativeInjections {
 
                     options.put(fInterface.name + '_' + 'OPTION_DUMPER_ENABLE', getTagValue('OPTION_DUMPER_ENABLE', element.comment, 'true'));
                     options.put(fInterface.name + '_' + 'OPTION_PLAYBACK_ENABLE', getTagValue('OPTION_PLAYBACK_ENABLE', element.comment, 'true'));
+                    options.put(fInterface.name + '_' + 'DISABLED_FIELDS', getTagValue('DISABLED_FIELDS', element.comment, ''));
                 }
             }
         }

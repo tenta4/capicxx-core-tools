@@ -188,7 +188,11 @@ class FInterfaceDumpGeneratorExtension {
             «extGenerateFieldsSerrialization(fStructType.base, fInterface)»
         «ENDIF»
         «FOR fField : fStructType.elements»
-            ("«fField.name»", «fField.name.toFirstUpper»)
+            «IF (isOptionContainsText(fInterface.name, 'DISABLED_FIELDS', fField.fullyQualifiedName))»
+                // parameter «fField.fullyQualifiedName» disabled
+            «ELSE»
+                ("«fField.name»", «fField.name.toFirstUpper»)
+            «ENDIF»
         «ENDFOR»
     '''
 
