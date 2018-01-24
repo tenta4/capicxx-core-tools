@@ -405,6 +405,18 @@ class FInterfacePlaybackGeneratorExtension {
                 , m_current_ts(m_timestamps.size())
                 , m_time_client(TimeService::CTimeClient(timestamps))
             {
+                for (std::size_t i = 1; i < m_timestamps.size(); ++i)
+                {
+                    if (m_timestamps[i - 1] > m_timestamps[i])
+                    {
+                        std::stringstream ss;
+                        ss << "Dump-file contains wrong timestamps order: "
+                           << m_timestamps[i - 1] << "(" << i - 1 << ") > "
+                           << m_timestamps[i - 0] << "(" << i - 0 << ")";
+                        throw std::runtime_error(ss.str());
+                    }
+                }
+
                 m_wait_function = is_sys_time ?
                     std::function<std::size_t()>([this]() {
                         if (++m_current_ts >= m_timestamps.size()) {
@@ -455,7 +467,7 @@ class FInterfacePlaybackGeneratorExtension {
             std::string service_name;
 
             bool client_mode = false;
-            bool system_mode = false;
+            bool time_service_sync = true;
 
             po::options_description desc("Allowed options");
             desc.add_options()
@@ -463,7 +475,7 @@ class FInterfacePlaybackGeneratorExtension {
                     ("dump_file,d", po::value<std::string>(&dump_filename)->default_value(dump_filename), "full pathname for dump file")
                     ("service_name,s", po::value<std::string>(&service_name)->required(), "connection instance name")
                     ("client_mode,c", po::value<bool>(&client_mode)->default_value(client_mode), "work in client mode; by default app plays only server events")
-                    ("system_time,t", po::value<bool>(&system_mode)->default_value(system_mode), "work without TimeService synchronization");
+                    ("time_service,t", po::value<bool>(&time_service_sync)->default_value(time_service_sync), "work without TimeService synchronization");
 
 
             try {
@@ -507,7 +519,7 @@ class FInterfacePlaybackGeneratorExtension {
                 visitor = new CClientVisitor(proxy);
             }
 
-            TimeProvider time_provider(provider.getTimestamps(), system_mode);
+            TimeProvider time_provider(provider.getTimestamps(), !time_service_sync);
             while (1)
             {
                 std::size_t idx = time_provider.waitForNexTimestamp();

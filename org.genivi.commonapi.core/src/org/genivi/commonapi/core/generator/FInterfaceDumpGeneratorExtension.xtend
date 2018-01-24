@@ -626,14 +626,14 @@ class FInterfaceDumpGeneratorExtension {
         #include <unistd.h>
 
         #include <CommonAPI/CommonAPI.hpp>
-
+        #include <boost/program_options.hpp>
         #include <«fInterface.proxyDumpWrapperHeaderPath»>
 
         class DumpProxyFactory
         {
         public:
             template<template<typename ...> class T> static
-            std::shared_ptr<T<>> create(const std::string& domain, const std::string& instance, uint32_t retry_count)
+            std::shared_ptr<T<>> create(const std::string& domain, const std::string& instance, uint32_t retry_count = 10)
             {
                 std::shared_ptr <CommonAPI::Runtime> runtime = CommonAPI::Runtime::get();
                 auto m_proxy = runtime->buildProxy<T>(domain.c_str(), instance.c_str());
@@ -664,29 +664,44 @@ class FInterfaceDumpGeneratorExtension {
 
         int main(int argc, char** argv)
         {
+            namespace po = boost::program_options;
             «fInterface.generateNamespaceUsage»
 
-            // TODO: rewrite to program options
-            if (argc < 2) {
-                std::cout << "Format <service name> "
-                          << "[systemTime/timeService (default timeService)]"
-                          << std::endl;
+            std::string domain_name = "local";
+            std::string service_name;
+            bool system_mode = false;
+
+            po::options_description desc("Allowed options");
+            desc.add_options()
+                    ("help,h", "print usage message")
+                    ("service_name,s", po::value<std::string>(&service_name)->required(), "connection instance name")
+                    ("system_time,t", po::value<bool>(&system_mode)->default_value(system_mode), "work without TimeService synchronization");
+
+            try {
+                po::variables_map vm;
+                po::store(po::parse_command_line(argc, argv, desc), vm);
+                if (vm.count("help")) {
+                    std::cout << desc << std::endl;
+                    return 0;
+                }
+                po::notify(vm);
+            } catch(std::exception& e) {
+                std::cerr << e.what() << std::endl;
+                std::cerr << desc << std::endl;
                 return 0;
             }
-            std::string service_name = argv[1];
-            std::cout << "Service name: " << service_name << std::endl;
-
-            signal(SIGINT, signalHandler);
 
             std::shared_ptr<«fInterface.proxyDumpWrapperClassName»<>> proxy;
-            if (argc > 2 && std::string("systemTime") == argv[2])
+            if (system_mode)
             {
                 proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_SystemTime>(
-                        "local", service_name, 5);
+                        domain_name, service_name);
             } else {
                 proxy = DumpProxyFactory::create<«fInterface.proxyDumpWrapperClassName»_TimeService>(
-                        "local", service_name, 5);
+                        domain_name, service_name);
             }
+
+            signal(SIGINT, signalHandler);
 
             while (!done) {
                 sleep(1);
