@@ -183,16 +183,29 @@ class FInterfaceDumpGeneratorExtension {
         «ENDIF»
     '''
 
+    def private String extGenerateElementAdapt(FInterface fInterface, FModelElement element, String name)
+    {
+        var String element_title = name;
+        var String element_name = name;
+        if (name == '')
+        {
+            element_title = element.name;
+            element_name = element.name.toFirstUpper;
+        }
+        if (isOptionContainsText(fInterface.name, 'OPTION_DISABLED_FIELDS', element.fullyQualifiedName)) {
+            return '// parameter ' + element.fullyQualifiedName + ' disabled'
+        } else {
+            return '("' + element_title + '", ' + element_name + ') ' +
+                   '// ' + element.fullyQualifiedName
+        }
+    }
+
     def dispatch extGenerateFieldsSerrialization(FStructType fStructType, FInterface fInterface) '''
         «IF (fStructType.base != null)»
             «extGenerateFieldsSerrialization(fStructType.base, fInterface)»
         «ENDIF»
         «FOR fField : fStructType.elements»
-            «IF (isOptionContainsText(fInterface.name, 'DISABLED_FIELDS', fField.fullyQualifiedName))»
-                // parameter «fField.fullyQualifiedName» disabled
-            «ELSE»
-                ("«fField.name»", «fField.name.toFirstUpper»)
-            «ENDIF»
+            «fInterface.extGenerateElementAdapt(fField, '')»
         «ENDFOR»
     '''
 
@@ -333,7 +346,7 @@ class FInterfaceDumpGeneratorExtension {
             «IF attribute.isObservable»
                 ADAPT_NAMED_ATTRS_ADT(
                 «fInterface.versionPrefix»«fInterface.model.generateCppNamespace»«attribute.name»DumpType,
-                ("m_data", m_data)
+                «fInterface.extGenerateElementAdapt(attribute, 'm_data')»
                 , SIMPLE_ACCESS)
 
             «ENDIF»
@@ -344,7 +357,7 @@ class FInterfaceDumpGeneratorExtension {
             ADAPT_NAMED_ATTRS_ADT(
             «fInterface.versionPrefix»«fInterface.model.generateCppNamespace»«broadcast.name»DumpType,
             «FOR argument : broadcast.outArgs»
-                ("m_«argument.name»", m_«argument.name»)
+                «fInterface.extGenerateElementAdapt(argument, 'm_' + argument.name)»
             «ENDFOR»
             , SIMPLE_ACCESS)
 
@@ -355,10 +368,10 @@ class FInterfaceDumpGeneratorExtension {
             ADAPT_NAMED_ATTRS_ADT(
             «fInterface.versionPrefix»«fInterface.model.generateCppNamespace»«method.name»DumpType,
             «FOR argument : method.inArgs»
-                ("m_«argument.name»", m_«argument.name»)
+                «fInterface.extGenerateElementAdapt(argument, 'm_' + argument.name)»
             «ENDFOR»
             «FOR argument : method.outArgs»
-                ("m_«argument.name»", m_«argument.name»)
+                «fInterface.extGenerateElementAdapt(argument, 'm_' + argument.name)»
             «ENDFOR»
             «IF (method.hasError)»
                 ("m_error", m_error)

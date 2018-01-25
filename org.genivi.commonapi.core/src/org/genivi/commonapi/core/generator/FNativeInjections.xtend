@@ -93,7 +93,7 @@ class FNativeInjections {
 
                     options.put(fInterface.name + '_' + 'OPTION_DUMPER_ENABLE', getTagValue('OPTION_DUMPER_ENABLE', element.comment, 'true'));
                     options.put(fInterface.name + '_' + 'OPTION_PLAYBACK_ENABLE', getTagValue('OPTION_PLAYBACK_ENABLE', element.comment, 'true'));
-                    options.put(fInterface.name + '_' + 'DISABLED_FIELDS', getTagValue('DISABLED_FIELDS', element.comment, ''));
+                    options.put(fInterface.name + '_' + 'OPTION_DISABLED_FIELDS', getTagValue('OPTION_DISABLED_FIELDS', element.comment, ''));
                 }
             }
         }
